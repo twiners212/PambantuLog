@@ -64,10 +64,18 @@ async function seed() {
     console.log("Starting seed script...");
     
     // 1. Create Admin Account
-    await createAccount('admin@company.com', 'admin123', 'Admin Master', 'admin', 'IT');
+    await createAccount(
+      process.env.SEED_ADMIN_EMAIL || 'admin@company.com',
+      process.env.SEED_ADMIN_PASSWORD || 'changeme_admin',
+      'Admin Master', 'admin', 'IT'
+    );
     
     // 2. Create User Account
-    await createAccount('karyawan@company.com', 'user123', 'Karyawan Biasa', 'karyawan', 'Operations');
+    await createAccount(
+      process.env.SEED_USER_EMAIL || 'karyawan@company.com',
+      process.env.SEED_USER_PASSWORD || 'changeme_user',
+      'Karyawan Biasa', 'karyawan', 'Operations'
+    );
 
     console.log("Inserting default categories...");
     await sql`
