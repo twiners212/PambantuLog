@@ -1,8 +1,4 @@
-<div align="center">
-  <img src="./public/mockup.png" alt="PambantuLog Preview" width="100%" style="border-radius: 12px; margin-bottom: 20px;" />
-  
-  <br />
-  <br />
+
 
   # 🛠️ PambantuLog
 
