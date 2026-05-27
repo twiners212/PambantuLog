@@ -6,12 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useAuth } from "@/components/auth-provider"
+import { useRoleGuard } from "@/hooks/useRoleGuard"
 import { UserPlus } from "lucide-react"
 
 export default function CreateEmployeePage() {
   const router = useRouter()
-  const { profile } = useAuth()
+  const { profile, loading: authLoading } = useRoleGuard(["admin"])
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -25,13 +25,9 @@ export default function CreateEmployeePage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
-  // Only admins can create employees
-  if (profile && profile.role !== "admin") {
-    return (
-      <div className="p-8 text-center text-destructive font-semibold">
-        Access Denied. You do not have permission to view this page.
-      </div>
-    )
+  // Only admins can create employees (handled by useRoleGuard)
+  if (authLoading || !profile || profile.role !== "admin") {
+    return null
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -214,6 +214,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const isEmployee = profile?.role === "karyawan"
+  const isPrivileged = profile?.role === "admin" || profile?.role === "agent"
   const canRate = isEmployee && ticket.status === "resolved" && !feedbackSubmitted
 
   return (
@@ -241,7 +242,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             <h2 className="text-2xl font-bold text-foreground">{ticket.title}</h2>
           </div>
           
-          {!isEmployee && (
+          {isPrivileged && (
             <div className="flex items-center gap-3 shrink-0">
               <Button onClick={handleNextStatus} disabled={isUpdatingStatus} className="min-w-[140px]">
                 {isUpdatingStatus ? "Updating..." : `Set to ${statusConfig[STATUS_SEQUENCE[(STATUS_SEQUENCE.indexOf(ticket.status) + 1) % STATUS_SEQUENCE.length]]?.label}`}
