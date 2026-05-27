@@ -1,64 +1,98 @@
-# Handoff Report - PambantuLog
-**Date/Time:** 26 Mei 2026
+# 🚀 PambantuLog — Development Handoff Document
 
-## 1. Ringkasan Pekerjaan yang Selesai Hari Ini
-- **Perbaikan Bug Sidebar Active Route:** Mengubah logika *highlight* menu di komponen `Sidebar.tsx` menggunakan *strict equality* (`===`) sehingga sub-rute seperti `/admin/master-list` tidak memicu menu `/admin` ikut aktif bersaman.
-- **Implementasi Ekspor PDF Performance Review:** Menyelesaikan fitur cetak performa agen di *Dashboard Analytics*. Laporan cetak secara otomatis menyembunyikan elemen web interaktif (tombol, *chart*) dan merendernya sebagai tabel ringkasan eksekutif formal, narasi kinerja, serta format tanda tangan khusus A4 menggunakan konfigurasi `@media print` terbaru di `index.css`.
-- **Perbaikan Bug Notifikasi "Zombi":** Memperbaiki masalah di mana notifikasi kembali muncul setelah *logout* dan *login*. Memanfaatkan *timestamp* spesifik dari server (`createdAt` terbesar) yang disimpan ke `localStorage` untuk memfilter notifikasi secara presisi tanpa terganggu *clock drift* komputer klien.
-- **Modifikasi Alur Penilaian (*Rate Service*):** Merombak fungsi *Rating*. Saat disubmit, sistem kini **tidak otomatis menutup tiket** (tetap *Resolved*). Hasil *rating* dikirim ke dalam *thread* diskusi tiket sebagai komentar khusus, dan hanya dapat dilihat oleh `admin` (karyawan dan *agent* biasa tidak bisa melihatnya).
-- **Perbaikan Warna Grafik (Recharts):** Mengatasi isu visibilitas tulisan pada sumbu grafik di *Dashboard Analytics* saat masuk ke *Dark Mode* dengan merubah panggilan variabel CSS lama ke format *OKLCH* Tailwind v4 (`var(--color-muted-foreground)`).
-- **Penyempurnaan Menu "My Tickets":** Memastikan *view* "My Tickets" secara eksklusif hanya menampilkan tiket yang dibuat (disubmit) oleh karyawan yang sedang *login*.
+**Tanggal Handoff:** 27 Mei 2026  
+**Status Terakhir:** 🟢 Tersimpan, Diuji, dan Berhasil di-Deploy (Vercel)
 
-## 2. Fitur yang Sudah *Working*
-- Autentikasi dan Manajemen Sesi via Supabase.
-- Hak Akses (RBAC) yang terisolasi dengan baik (Admin, Agent, Karyawan).
-- CRUD Tiket: Pembuatan tiket, pelampiran *file* (attachment), penugasan (Assign), siklus status (Open -> Closed), hingga umpan balik kerahasiaan *Rating*.
-- Dashboard Analytics dengan dukungan **Export Laporan PDF** (*Print Layout* khusus).
-- Profil dan penggantian *password*.
+---
 
-## 3. Task yang Belum Selesai (Langkah Berikutnya)
-- **Pembersihan Kode (Code Cleanup):** Menyortir dan menghapus *unused imports* atau variabel tidak terpakai yang memicu peringatan ESLint (seperti *import* *lucide-react* yang berlebih).
+## 📋 Ringkasan Pekerjaan Hari Ini
+Hari ini kita menyelesaikan finalisasi MVP (Minimum Viable Product) untuk PambantuLog. Pekerjaan berfokus pada **Security, Frontend RBAC, dan Repository Polish**. Sistem sekarang memiliki perlindungan rute (*route guard*) yang ketat di sisi klien, manajemen dependensi yang bersih, dan siap disajikan sebagai portofolio publik yang profesional.
 
-## 4. Known Issues / Bug / Blocker
-- Muncul peringatan (`Warning`) terkait *Next.js Middleware* di konsol ("*The middleware file convention is deprecated*"), hal ini **tidak memblokir** fungsi aplikasi.
-- Terdapat peringatan ringan dari ESLint terkait `unused variables`, yang sepenuhnya aman dan tidak menggagalkan proses *build*.
+---
 
-## 5. File Penting yang Diubah Hari Ini
-- `src/components/layout/Sidebar.tsx` (Perbaikan logika `isActive`).
-- `src/components/layout/Header.tsx` (Solusi sinkronisasi penyimpanan *Clear Notifications* ke `localStorage`).
-- `src/app/(dashboard)/admin/page.tsx` (Implementasi layout PDF Review dan perbaikan warna Recharts OKLCH).
-- `src/app/(dashboard)/tickets/[id]/page.tsx` (Filter komentar UI khusus Admin dan perbaikan alur *Rate Service*).
-- `index.css` (Penambahan fitur `@media print` dan konfigurasi A4 cetak putih).
+## ✨ Fitur yang Sudah Bekerja (Working Features)
+1. **Autentikasi & Otorisasi**: Login berhasil terhubung dengan Supabase Auth.
+2. **Strict Frontend RBAC**:
+   - `karyawan` hanya bisa mengakses tiket mereka sendiri dan form pembuatan tiket.
+   - Folder `/admin` sepenuhnya diblokir untuk karyawan.
+   - Halaman `/admin/employees/create` diisolasi eksklusif hanya untuk peran `admin` (teknisi/agent tidak bisa akses).
+   - Pengalihan otomatis (Error 403) ke `/unauthorized` jika mencoba melanggar rute.
+3. **Manajemen Tiket**: Pembuatan tiket, *list view*, dan *detail view* berfungsi penuh.
+4. **State Machine (Alur Tiket)**: Kontrol status tiket (Open ➔ In Progress ➔ Resolved) hanya bisa dipicu oleh `admin` atau `agent`.
+5. **Komentar & Threading**: Fitur diskusi dalam tiket berjalan normal.
 
-## 6. Dependency / Package Baru
-- **Tidak ada.** Semua penambahan fitur murni memaksimalkan kapabilitas Next.js bawaan dan Recharts yang sudah ada.
+---
 
-## 7. Status Proyek Saat Ini (Environment & Database)
-- **Status Dev Server (`npm run dev`):** 🟢 Berjalan stabil (~1 jam *uptime* tanpa _crash_).
-- **Status Build:** 🟢 Berhasil terkompilasi dan berjalan lancar.
-- **Status Migrasi Database:** 🟢 *Up-to-date*. Tidak ada skema *database* atau tabel baru yang ditambahkan hari ini (hanya memanfaatkan modifikasi *frontend logic*).
-- **Environment Variables yang Diperlukan (`.env.local`):**
-  ```env
-  NEXT_PUBLIC_SUPABASE_URL=...
-  NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-  SUPABASE_SERVICE_ROLE_KEY=...
-  DATABASE_URL=... (pooler URI)
-  ```
+## 🚧 Task yang Belum Selesai (Pending Tasks)
+1. **Dashboard Analytics (Admin)**: Saat ini halaman `/admin` (Analytics Dashboard) kemungkinan masih menampilkan metrik statis atau *placeholder*. Belum ada agregasi data sungguhan dari database.
+2. **Supabase Realtime**: Notifikasi dan *update* komentar masih mengandalkan *polling* atau *refresh*. Belum menggunakan integrasi WebSockets (Supabase Realtime) untuk pembaruan instan.
 
-## 8. Command Penting
-```bash
-# Menjalankan development server (local)
-npm run dev
+---
 
-# Melakukan kompilasi untuk versi production
-npm run build
+## 🐛 Known Issues / Bug / Blocker
+- **Mobile Experience di Master List**: Tabel data pada halaman "Master Ticket List" belum sepenuhnya dioptimasi untuk layar *mobile* (kemungkinan membutuhkan *horizontal scroll* atau perlu diubah pendekatannya menjadi *Card Stack* pada layar `< sm`).
+- Tidak ada *blocker* kritikal. Aplikasi stabil.
 
-# Menjalankan versi production hasil kompilasi
-npm start
+---
 
-# Melakukan push/sinkronisasi jika ada perubahan Drizzle ke depannya
-npm run db:push
+## 📁 File Penting yang Baru Dibuat / Diubah Hari Ini
+- `src/hooks/useRoleGuard.ts` *(Baru - Core logic untuk RBAC)*
+- `src/app/(dashboard)/admin/layout.tsx` *(Baru - Membungkus seluruh halaman admin)*
+- `src/app/unauthorized/page.tsx` *(Baru - UI Error 403 fallback)*
+- `src/app/(dashboard)/tickets/[id]/page.tsx` *(Update - Obfuskasi tombol State Machine)*
+- `scripts/seed.mjs` *(Update - Menghilangkan password hardcoded, menggantinya ke Environment Variables)*
+- `.gitignore` *(Update - Pembersihan aturan ganda dan penghapusan `.env.example`)*
+- `README.md` *(Update - Perombakan desain total untuk Portfolio)*
+
+---
+
+## 📦 Dependency / Package Baru
+*Tidak ada package baru yang diinstal pada sesi hari ini. Ekosistem masih bertahan di:*
+- Next.js 16 (Turbopack)
+- Tailwind CSS v4
+- Supabase-js
+- Drizzle ORM
+
+---
+
+## 💻 Environment Variables (PENTING)
+Agar aplikasi berjalan, file `.env.local` WAJIB berisi:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://[PROJECT_ID].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbG...
+DATABASE_URL=postgresql://postgres.[PROJECT_ID]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+
+# Opsional untuk Seed Script
+SEED_ADMIN_PASSWORD=password_bebas_untuk_admin
+SEED_USER_PASSWORD=password_bebas_untuk_karyawan
 ```
 
-## 9. Rekomendasi Langkah Berikutnya
-Sistem inti, alur tiket, pelaporan (PDF), notifikasi, dan analitik sudah stabil dan berjalan persis sesuai dengan ekspektasi fungsionalnya. Rekomendasi besok adalah melakukan **Pembersihan Terminal Log & ESLint** (menghapus *unused imports*) agar kode menjadi 100% rapi di mata *Linter* sebelum perilisan (*deployment*).
+---
+
+## 🛠️ Status Eksekusi & Database
+- **Status Build**: ✅ BERHASIL (`npm run build` berjalan tanpa error TypeScript maupun Linting).
+- **Status Dev Server**: ✅ BERHASIL (`npm run dev` berjalan stabil di `localhost:3000`).
+- **Status Database Migration**: ✅ *Up to date*. Skema Drizzle tersinkronisasi, RLS (Row Level Security) aktif di Supabase. Script *seeding* (`node scripts/seed.mjs`) berjalan sukses.
+- **Status Deploy**: ✅ Live di Vercel terhubung dengan branch `main` GitHub.
+
+---
+
+## ⌨️ Command Penting untuk Dilanjutkan Besok
+```bash
+# Menjalankan local server
+npm run dev
+
+# Mengecek tipe TypeScript (sebelum push)
+npm run build
+
+# Jika terjadi perubahan skema database besok:
+npx drizzle-kit push
+```
+
+---
+
+## 🎯 Rekomendasi Langkah Berikutnya (Next Steps)
+1. **Integrasi Chart**: Mulai kerjakan agregasi data di `src/app/api/...` dan tampilkan metrik visual menggunakan `recharts` atau `tremor` di halaman `/admin`.
+2. **Mobile UX Polish**: Refactor `Table` komponen di `/admin/tickets` menggunakan Tailwind classes `hidden md:table` dan buat fallback UI khusus HP.
+3. **Optimasi Image/Asset**: Pastikan avatar pengguna di- *cache* dan menggunakan `next/image` untuk performa terbaik.
