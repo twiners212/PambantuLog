@@ -2,6 +2,8 @@
 
 **PambantuLog** adalah sistem *Internal Helpdesk* (Layanan Pengaduan Karyawan) terpusat yang dirancang untuk mencatat, melacak, dan menyelesaikan setiap permintaan bantuan teknis dari karyawan. Sistem ini menggantikan pelaporan manual menjadi alur yang sistematis, terukur, dan transparan.
 
+![PambantuLog Dashboard UI](./public/mockup.png)
+
 ## ✨ Fitur Utama
 - **Role-Based Access Control (RBAC)**: Pemisahan hak akses yang ketat antara Admin, Teknisi (Agent), dan Karyawan (User).
 - **Manajemen Tiket (State Machine)**: Pelacakan status tiket secara real-time (*Open, In Progress, Waiting on User, Resolved, Closed*).
