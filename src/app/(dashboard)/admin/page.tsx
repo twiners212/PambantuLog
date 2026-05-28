@@ -81,7 +81,8 @@ export default function AdminDashboardPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === "admin"
 
-  const [tickets, setTickets] = useState<TicketData[]>([])
+  const [counts, setCounts] = useState({ open: 0, in_progress: 0, pending: 0, resolved: 0, closed: 0 })
+  const [totalTickets, setTotalTickets] = useState(0)
   const [loading, setLoading] = useState(true)
   
   // Filters
@@ -92,12 +93,16 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch(`/api/v1/tickets`)
+        setLoading(true)
+        const res = await fetch(`/api/v1/analytics?timeRange=${timeRange}&agentId=${selectedAgent}`)
         const data = await res.json()
-        setTickets(data.data || [])
+        if (data.success) {
+          setCounts(data.data.counts)
+          setTotalTickets(data.data.total)
+        }
         
         // Fetch agents if admin
-        if (isAdmin) {
+        if (isAdmin && agents.length === 0) {
           const agentRes = await fetch("/api/v1/users?role=agent")
           const agentData = await agentRes.json()
           if (agentData.success) {
@@ -115,46 +120,7 @@ export default function AdminDashboardPage() {
     if (profile) {
       fetchData()
     }
-  }, [profile, isAdmin])
-
-  // Filter Logic
-  const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
-      // 1. Filter by Agent
-      if (isAdmin) {
-        if (selectedAgent !== "all") {
-          if (t.assignedTo?.id !== selectedAgent) return false;
-        }
-      } else {
-        // If not admin (i.e. agent), API already filters assigned tickets, but just to be safe
-        if (t.assignedTo?.id !== profile?.id) return false;
-      }
-
-      // 2. Filter by Time Range
-      if (timeRange !== "all" && t.createdAt) {
-        const ticketDate = new Date(t.createdAt)
-        const now = new Date()
-        
-        if (timeRange === "daily") {
-          if (ticketDate.toDateString() !== now.toDateString()) return false;
-        } else if (timeRange === "monthly") {
-          if (ticketDate.getMonth() !== now.getMonth() || ticketDate.getFullYear() !== now.getFullYear()) return false;
-        } else if (timeRange === "yearly") {
-          if (ticketDate.getFullYear() !== now.getFullYear()) return false;
-        }
-      }
-      return true;
-    })
-  }, [tickets, selectedAgent, timeRange, isAdmin, profile])
-
-  const counts = {
-    open: filteredTickets.filter(t => t.status === "open").length,
-    in_progress: filteredTickets.filter(t => t.status === "in_progress").length,
-    pending: filteredTickets.filter(t => t.status === "pending").length,
-    resolved: filteredTickets.filter(t => t.status === "resolved").length,
-    closed: filteredTickets.filter(t => t.status === "closed").length,
-  }
-  const totalTickets = filteredTickets.length;
+  }, [profile, isAdmin, timeRange, selectedAgent, agents.length])
 
   const chartData = [
     { name: 'Open', count: counts.open, fill: statusConfig.open.color },
@@ -381,7 +347,7 @@ export default function AdminDashboardPage() {
             <CardContent className="pt-6">
               {loading ? (
                 <Skeleton className="h-[350px] w-full rounded-xl" />
-              ) : filteredTickets.length > 0 ? (
+              ) : totalTickets > 0 ? (
                 <div className="h-[350px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
@@ -424,7 +390,7 @@ export default function AdminDashboardPage() {
             <CardContent className="pt-6">
               {loading ? (
                 <Skeleton className="h-[350px] w-full rounded-xl" />
-              ) : filteredTickets.length > 0 ? (
+              ) : totalTickets > 0 ? (
                 <div className="h-[350px] w-full flex flex-col">
                   <ResponsiveContainer width="100%" height="80%">
                     <PieChart>

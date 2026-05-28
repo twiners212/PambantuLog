@@ -178,58 +178,98 @@ export default function AdminTicketsPage() {
             ))}
           </div>
         ) : (
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[100px] font-semibold">ID</TableHead>
-                <TableHead className="font-semibold">Title</TableHead>
-                <TableHead className="font-semibold">Category</TableHead>
-                <TableHead className="font-semibold">Requester</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="text-right font-semibold">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedTickets.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground font-medium">
-                    No tickets match your filters.
-                  </TableCell>
+          <>
+            <Table className="hidden md:table">
+              <TableHeader className="bg-muted/30">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[100px] font-semibold">ID</TableHead>
+                  <TableHead className="font-semibold">Title</TableHead>
+                  <TableHead className="font-semibold">Category</TableHead>
+                  <TableHead className="font-semibold">Requester</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="text-right font-semibold">Date</TableHead>
                 </TableRow>
-              ) : (
-                paginatedTickets.map((ticket) => {
-                const status = statusConfig[ticket.status]
-
-                return (
-                  <TableRow 
-                    key={ticket.id} 
-                    className="group cursor-pointer hover:bg-accent/5 hover:shadow-[0_0_15px_rgba(0,0,0,0.05)] transition-all relative z-0 hover:z-10"
-                    onClick={() => router.push(`/tickets/${ticket.id}`)}
-                  >
-                    <TableCell className="font-mono text-muted-foreground text-xs">
-                      <span className="bg-muted px-2 py-1 rounded-md border border-border">
-                        {ticket.id.slice(0, 8)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-bold text-foreground group-hover:text-primary transition-colors">
-                      {ticket.title}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{ticket.category?.name}</TableCell>
-                    <TableCell>{ticket.createdBy?.fullName || 'Unknown'}</TableCell>
-                    <TableCell>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${status?.classes}`}>
-                        {status?.label}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground text-sm">
-                      {new Date(ticket.createdAt).toLocaleDateString()}
+              </TableHeader>
+              <TableBody>
+                {paginatedTickets.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground font-medium">
+                      No tickets match your filters.
                     </TableCell>
                   </TableRow>
-                )
-              })
+                ) : (
+                  paginatedTickets.map((ticket) => {
+                  const status = statusConfig[ticket.status]
+
+                  return (
+                    <TableRow 
+                      key={ticket.id} 
+                      className="group cursor-pointer hover:bg-accent/5 hover:shadow-[0_0_15px_rgba(0,0,0,0.05)] transition-all relative z-0 hover:z-10"
+                      onClick={() => router.push(`/tickets/${ticket.id}`)}
+                    >
+                      <TableCell className="font-mono text-muted-foreground text-xs">
+                        <span className="bg-muted px-2 py-1 rounded-md border border-border">
+                          {ticket.id.slice(0, 8)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-bold text-foreground group-hover:text-primary transition-colors">
+                        {ticket.title}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{ticket.category?.name}</TableCell>
+                      <TableCell>{ticket.createdBy?.fullName || 'Unknown'}</TableCell>
+                      <TableCell>
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${status?.classes}`}>
+                          {status?.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground text-sm">
+                        {new Date(ticket.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+                )}
+              </TableBody>
+            </Table>
+            <div className="flex flex-col md:hidden">
+              {paginatedTickets.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground font-medium">
+                  No tickets match your filters.
+                </div>
+              ) : (
+                <div className="flex flex-col divide-y divide-border">
+                  {paginatedTickets.map((ticket) => {
+                    const status = statusConfig[ticket.status];
+                    return (
+                      <div 
+                        key={ticket.id}
+                        className="p-4 flex flex-col gap-3 hover:bg-accent/5 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/tickets/${ticket.id}`)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="font-mono text-muted-foreground text-xs bg-muted px-2 py-0.5 rounded-md border border-border">
+                            {ticket.id.slice(0, 8)}
+                          </span>
+                          <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${status?.classes}`}>
+                            {status?.label}
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-foreground text-sm line-clamp-1">{ticket.title}</h3>
+                          <p className="text-muted-foreground text-xs mt-1">
+                            {ticket.category?.name} &bull; {ticket.createdBy?.fullName || 'Unknown'}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs font-medium text-muted-foreground mt-1">
+                          {new Date(ticket.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </TableBody>
-          </Table>
+            </div>
+          </>
         )}
       </div>
 
