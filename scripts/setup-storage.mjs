@@ -15,7 +15,7 @@ async function setup() {
   }
   
   if (!buckets.some(b => b.name === "attachments")) {
-    const { data, error } = await supabase.storage.createBucket("attachments", {
+    const { error } = await supabase.storage.createBucket("attachments", {
       public: true,
       fileSizeLimit: 5242880, // 5MB
       allowedMimeTypes: ["image/png", "image/jpeg", "application/pdf"],

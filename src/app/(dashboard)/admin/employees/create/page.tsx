@@ -58,6 +58,7 @@ export default function CreateEmployeePage() {
         setError(data.message || "Failed to create employee")
       }
     } catch (err) {
+      console.error("Error creating employee:", err)
       setError("An error occurred while creating the employee.")
     } finally {
       setLoading(false)

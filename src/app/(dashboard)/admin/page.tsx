@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,13 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Activity, Clock, CheckCircle, Ticket, AlertCircle, TrendingUp, Printer } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-
-interface TicketData {
-  id: string
-  status: string
-  createdAt: string
-  assignedTo?: { id: string; fullName: string; department: string | null } | null
-}
 
 const statusConfig: Record<string, { label: string, color: string, icon: React.ReactNode }> = {
   open: { label: 'Open', color: 'var(--color-chart-1)', icon: <Ticket className="w-5 h-5" /> },
@@ -80,6 +73,17 @@ const StatCard = ({ title, value, icon, color, loading }: { title: string, value
 export default function AdminDashboardPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === "admin"
+
+  const [reportId, setReportId] = useState("")
+  const [generatedAt, setGeneratedAt] = useState("")
+
+  useEffect(() => {
+    const randomPart = Math.random().toString(36).slice(2, 11).toUpperCase()
+    const currentYear = new Date().getFullYear()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReportId(`${randomPart}-${currentYear}`)
+    setGeneratedAt(new Date().toLocaleString('id-ID'))
+  }, [])
 
   const [counts, setCounts] = useState({ open: 0, in_progress: 0, pending: 0, resolved: 0, closed: 0 })
   const [totalTickets, setTotalTickets] = useState(0)
@@ -181,8 +185,8 @@ export default function AdminDashboardPage() {
             <p className="text-sm font-medium text-gray-500 tracking-wide uppercase">PambantuLog &bull; Internal IT Support &amp; Helpdesk</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500 font-mono">REPORT ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}-{new Date().getFullYear()}</p>
-            <p className="text-xs text-gray-500 font-mono mt-1">GENERATED: {new Date().toLocaleString('id-ID')}</p>
+            <p className="text-xs text-gray-500 font-mono">REPORT ID: {reportId}</p>
+            <p className="text-xs text-gray-500 font-mono mt-1">GENERATED: {generatedAt}</p>
           </div>
         </div>
 

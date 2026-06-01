@@ -4,7 +4,7 @@ import { tickets, ticketComments, users } from "@/db/schema";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { eq, ne, desc, and } from "drizzle-orm";
 
-export async function GET(_request: Request) {
+export async function GET() {
   try {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
