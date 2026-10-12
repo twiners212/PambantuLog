@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Menu, Bell, User, LogOut, Moon, Sun, CheckCircle2 } from "lucide-react"
+import { Menu, Bell, User, LogOut, Moon, Sun, CheckCircle2, Ticket, PlusCircle, Activity, List, UserPlus, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser"
@@ -76,17 +76,66 @@ export function Header() {
   }
 
   const handleLogout = async () => {
-    await supabase?.auth.signOut()
-    router.push("/login")
-    router.refresh()
+    try {
+      await fetch("/api/v1/auth/logout", { method: "POST" })
+    } catch (err) {
+      console.error("Logout API error:", err)
+    }
+
+    if (supabase) {
+      try {
+        await supabase.auth.signOut()
+      } catch (err) {
+        console.error("Supabase sign out error:", err)
+      }
+    }
+
+    localStorage.removeItem("pambantulog_mock_user")
+    window.location.href = "/login"
   }
+
+  const isAdminOrAgent = profile?.role === "admin" || profile?.role === "agent"
+  const isAdmin = profile?.role === "admin"
+
+  const mobileNavLinks = [
+    { name: "My Tickets", href: "/employee/tickets", icon: Ticket, show: true },
+    { name: "Submit Ticket", href: "/employee/create", icon: PlusCircle, show: true },
+    { name: "Dashboard Analytics", href: "/admin", icon: Activity, show: isAdminOrAgent },
+    { name: "Master List", href: "/admin/tickets", icon: List, show: isAdminOrAgent },
+    { name: "Create Employee", href: "/admin/employees/create", icon: UserPlus, show: isAdmin },
+    { name: "Profile & Settings", href: "/profile", icon: Settings, show: true },
+  ].filter((l) => l.show)
 
   return (
     <header className="flex justify-between items-center px-6 h-16 w-full sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border shadow-sm shrink-0">
       <div className="flex items-center gap-4">
-        <button className="md:hidden text-muted-foreground p-2 -ml-2 rounded-full hover:bg-accent hover:text-accent-foreground transition-colors">
-          <Menu className="w-5 h-5" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label="Toggle navigation menu"
+              className="md:hidden text-muted-foreground p-2 -ml-2 rounded-full hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 md:hidden">
+            <DropdownMenuLabel>Navigation Menu</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {mobileNavLinks.map((link) => {
+              const Icon = link.icon
+              return (
+                <DropdownMenuItem
+                  key={link.name}
+                  className="flex items-center gap-3 cursor-pointer py-2"
+                  onClick={() => router.push(link.href)}
+                >
+                  <Icon className="w-4 h-4 text-primary" />
+                  <span>{link.name}</span>
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent md:hidden">PambantuLog</div>
       </div>
       

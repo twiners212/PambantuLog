@@ -1,6 +1,6 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ── Dependencies ─────────────────────────────────────────────────────────────
 /node_modules
 /.pnp
 .pnp.*
@@ -10,38 +10,68 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ── Next.js & Build Outputs ──────────────────────────────────────────────────
 /.next/
 /out/
-
-# production
 /build
 /dist
 
-# cache & logs
+# ── Cache & Temporary Files ──────────────────────────────────────────────────
+/.cache
 /cache
+/.turbo
+*.tsbuildinfo
+*.tmp
+*.swp
+*~
+
+# ── Logs & Debugging ─────────────────────────────────────────────────────────
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# environment variables
+# ── Environment Variables & Credentials ──────────────────────────────────────
 .env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
 .env.*
+!.env.example
 
-# misc
-.DS_Store
-Thumbs.db
+# ── Security Keys & Certificates ─────────────────────────────────────────────
 *.pem
 *.key
+*.cert
+*.crt
+*serviceAccount*.json
 
-# vercel
+# ── Testing & Coverage ───────────────────────────────────────────────────────
+/coverage
+
+# ── Deployment & Cloud Services ──────────────────────────────────────────────
 .vercel
 
-# typescript
-*.tsbuildinfo
+# ── Operating System Junk ────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ── IDE & Editor Settings ────────────────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.sublime-project
+*.sublime-workspace
+
+# ── TypeScript ───────────────────────────────────────────────────────────────
 next-env.d.ts

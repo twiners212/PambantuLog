@@ -12,12 +12,59 @@ import { eq } from "drizzle-orm";
  */
 export async function GET() {
   try {
+    const { getServerSession } = await import("@/lib/auth-session");
+    const session = await getServerSession();
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL && session) {
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: session.id,
+          fullName: session.fullName,
+          email: session.email,
+          role: session.role,
+          department: session.department ?? null,
+        },
+      });
+    }
+
     const supabase = await createSupabaseServerClient();
+    if (!supabase) {
+      if (session) {
+        return NextResponse.json({
+          success: true,
+          user: {
+            id: session.id,
+            fullName: session.fullName,
+            email: session.email,
+            role: session.role,
+            department: session.department ?? null,
+          },
+        });
+      }
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
+      if (session) {
+        return NextResponse.json({
+          success: true,
+          user: {
+            id: session.id,
+            fullName: session.fullName,
+            email: session.email,
+            role: session.role,
+            department: session.department ?? null,
+          },
+        });
+      }
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -31,6 +78,18 @@ export async function GET() {
       .limit(1);
 
     if (!profile) {
+      if (session) {
+        return NextResponse.json({
+          success: true,
+          user: {
+            id: session.id,
+            fullName: session.fullName,
+            email: session.email,
+            role: session.role,
+            department: session.department ?? null,
+          },
+        });
+      }
       return NextResponse.json(
         { success: false, message: "Profile not found" },
         { status: 404 }

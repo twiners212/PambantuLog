@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = async () => {
     if (!supabase) {
-      Promise.resolve().then(() => setLoading(false))
+      await fetchProfile()
       return
     }
     const {
@@ -84,18 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    if (!supabase) {
-      Promise.resolve().then(() => {
+
+    Promise.resolve().then(() => {
+      refresh().finally(() => {
         if (mounted) setLoading(false);
       });
-      return
-    }
+    });
 
-    // Initial session check
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh().finally(() => {
-      if (mounted) setLoading(false);
-    })
+    if (!supabase) {
+      return () => {
+        mounted = false;
+      };
+    }
 
     // Listen for auth state changes (login, logout, token refresh)
     const {

@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search, ChevronLeft, ChevronRight } from "lucide-react"
 
+import { useTicketSearch } from "@/hooks/useTicketSearch"
+
 const statusConfig: Record<string, { label: string, classes: string }> = {
   open: { label: 'Open', classes: 'bg-secondary/10 text-secondary' },
   in_progress: { label: 'In Progress', classes: 'bg-primary/10 text-primary' },
@@ -17,49 +19,30 @@ const statusConfig: Record<string, { label: string, classes: string }> = {
   closed: { label: 'Closed', classes: 'bg-muted text-muted-foreground' },
 }
 
-interface TicketWithRelations {
-  id: string
-  title: string
-  description: string
-  status: string
-  priority: string
-  createdAt: string
-  category: { id: string; name: string } | null
-  createdBy: { id: string; fullName: string; email: string; department: string | null } | null
-  assignedTo?: { id: string; fullName: string; } | null
-}
-
 interface Category { id: string; name: string; }
 interface UserData { id: string; fullName: string; }
 
 export default function AdminTicketsPage() {
   const router = useRouter()
-  const [tickets, setTickets] = useState<TicketWithRelations[]>([])
-  const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [assigneeFilter, setAssigneeFilter] = useState("all")
-  const [currentPage, setCurrentPage] = useState(1)
   const [categories, setCategories] = useState<Category[]>([])
   const [agents, setAgents] = useState<UserData[]>([])
 
-  const ITEMS_PER_PAGE = 10
-
-  useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        const res = await fetch(`/api/v1/tickets`)
-        const data = await res.json()
-        setTickets(data.data || [])
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchTickets()
-  }, [])
+  const {
+    searchTerm: searchQuery,
+    setSearchTerm: setSearchQuery,
+    statusFilter,
+    setStatusFilter,
+    categoryFilter,
+    setCategoryFilter,
+    assigneeFilter,
+    setAssigneeFilter,
+    setPage,
+    tickets,
+    pagination,
+    isLoading: loading,
+  } = useTicketSearch({
+    initialLimit: 10,
+  })
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -79,35 +62,6 @@ export default function AdminTicketsPage() {
     fetchMetadata();
   }, []);
 
-  const filteredTickets = tickets.filter(t => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (categoryFilter !== "all" && t.category?.id !== categoryFilter) return false;
-    
-    if (assigneeFilter !== "all") {
-      if (assigneeFilter === "unassigned") {
-        if (t.assignedTo) return false;
-      } else {
-        if (t.assignedTo?.id !== assigneeFilter) return false;
-      }
-    }
-    
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      if (!t.title.toLowerCase().includes(q) && !t.id.toLowerCase().includes(q)) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / ITEMS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-
-  const paginatedTickets = filteredTickets.slice(
-    (safePage - 1) * ITEMS_PER_PAGE,
-    safePage * ITEMS_PER_PAGE
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
@@ -122,17 +76,14 @@ export default function AdminTicketsPage() {
             <Input 
               placeholder="Search by ID or Title..." 
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 bg-card"
             />
           </div>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
             <SelectTrigger className="bg-background">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -146,7 +97,7 @@ export default function AdminTicketsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v)}>
             <SelectTrigger className="bg-background">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
@@ -156,7 +107,7 @@ export default function AdminTicketsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={assigneeFilter} onValueChange={(v) => { setAssigneeFilter(v); setCurrentPage(1); }}>
+          <Select value={assigneeFilter} onValueChange={(v) => setAssigneeFilter(v)}>
             <SelectTrigger className="bg-background">
               <SelectValue placeholder="Assignee" />
             </SelectTrigger>
@@ -191,14 +142,14 @@ export default function AdminTicketsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedTickets.length === 0 ? (
+                {tickets.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center text-muted-foreground font-medium">
                       No tickets match your filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedTickets.map((ticket) => {
+                  tickets.map((ticket) => {
                   const status = statusConfig[ticket.status]
 
                   return (
@@ -232,13 +183,13 @@ export default function AdminTicketsPage() {
               </TableBody>
             </Table>
             <div className="flex flex-col md:hidden">
-              {paginatedTickets.length === 0 ? (
+              {tickets.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground font-medium">
                   No tickets match your filters.
                 </div>
               ) : (
                 <div className="flex flex-col divide-y divide-border">
-                  {paginatedTickets.map((ticket) => {
+                  {tickets.map((ticket) => {
                     const status = statusConfig[ticket.status];
                     return (
                       <div 
@@ -274,28 +225,30 @@ export default function AdminTicketsPage() {
       </div>
 
       {/* Pagination Footer */}
-      {!loading && filteredTickets.length > 0 && (
+      {!loading && pagination.totalItems > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
           <p className="text-sm text-muted-foreground">
-            Showing {(safePage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(safePage * ITEMS_PER_PAGE, filteredTickets.length)} of {filteredTickets.length} tickets
+            Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+            {Math.min(pagination.page * pagination.limit, pagination.totalItems)} of{" "}
+            {pagination.totalItems} tickets
           </p>
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safePage === 1}
+              onClick={() => setPage(pagination.page - 1)}
+              disabled={!pagination.hasPrevPage}
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Prev
             </Button>
             <div className="text-sm font-medium px-2 text-foreground">
-              Page {safePage} of {totalPages}
+              Page {pagination.page} of {pagination.totalPages}
             </div>
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={safePage === totalPages}
+              onClick={() => setPage(pagination.page + 1)}
+              disabled={!pagination.hasNextPage}
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />
             </Button>

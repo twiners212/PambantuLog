@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { mockUsers } from "@/lib/mock-data";
+import {
+  checkRateLimit,
+  peekRateLimit,
+  LIMIT_CONFIGS,
+  getClientIp,
+  createRateLimitResponse,
+  resetMemoryRateLimit,
+} from "@/lib/rate-limit";
 
 // ── Dev-mode flag ───────────────────────────────────────────────────────────
 const isSupabaseConfigured =
@@ -9,9 +17,9 @@ const isSupabaseConfigured =
 /**
  * POST /api/v1/auth/login
  *
- * When Supabase is configured → real auth via signInWithPassword.
- * When Supabase is NOT configured → falls back to mock users so you
- * can develop the UI without a backend.
+ * Implements:
+ * - Rate limiting: Max 5 failed attempts per 15 minutes per IP/email identifier.
+ * - Reset on successful authentication.
  *
  * Body: { email, password }
  */
@@ -21,46 +29,88 @@ export async function POST(request: Request) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { success: false, message: "Missing email or password" },
+        { success: false, message: "Email dan kata sandi wajib diisi" },
         { status: 400 }
+      );
+    }
+
+    const clientIp = getClientIp(request);
+    const normalizedEmail = email.toLowerCase().trim();
+    const rateLimitIdentifier = `${clientIp}:${normalizedEmail}`;
+
+    // ── Check if already locked out due to >= 5 failed attempts ─────────
+    const preCheck = await peekRateLimit(rateLimitIdentifier, LIMIT_CONFIGS.AUTH_LOGIN);
+    if (!preCheck.success) {
+      return createRateLimitResponse(
+        preCheck,
+        "Terlalu banyak percobaan login yang gagal. Akun / IP Anda dibatasi selama 15 menit demi keamanan."
       );
     }
 
     // ── Mock mode (no Supabase env vars) ──────────────────────────────────
     if (!isSupabaseConfigured) {
-      const user = mockUsers.find((u) => u.email === email);
+      const user = mockUsers.find((u) => u.email === normalizedEmail);
 
       if (user && password === "password123") {
-        return NextResponse.json({
+        // Success: reset failed attempts
+        const response = NextResponse.json({
           success: true,
           user,
           session: null,
         });
+        const { setSessionCookie } = await import("@/lib/auth-session");
+        return setSessionCookie(response, {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role as "admin" | "agent" | "karyawan",
+          department: user.department,
+        });
+      }
+
+      // Failed login: record attempt
+      const failRecord = await checkRateLimit(rateLimitIdentifier, LIMIT_CONFIGS.AUTH_LOGIN);
+      if (!failRecord.success) {
+        return createRateLimitResponse(
+          failRecord,
+          "Terlalu banyak percobaan login yang gagal. Akun / IP Anda dibatasi selama 15 menit demi keamanan."
+        );
       }
 
       return NextResponse.json(
-        { success: false, message: "Invalid credentials" },
+        {
+          success: false,
+          message: `Kredensial tidak valid. Sisa percobaan: ${failRecord.remaining}`,
+        },
         { status: 401 }
       );
     }
 
     // ── Real mode (Supabase configured) ───────────────────────────────────
-    const { createSupabaseServerClient } = await import(
-      "@/lib/supabase-server"
-    );
+    const { createSupabaseServerClient } = await import("@/lib/supabase-server");
     const { db } = await import("@/db");
     const { users } = await import("@/db/schema");
     const { eq } = await import("drizzle-orm");
 
     const supabase = await createSupabaseServerClient();
     const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({ email, password });
+      await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
     if (authError || !authData.user) {
+      const failRecord = await checkRateLimit(rateLimitIdentifier, LIMIT_CONFIGS.AUTH_LOGIN);
+      if (!failRecord.success) {
+        return createRateLimitResponse(
+          failRecord,
+          "Terlalu banyak percobaan login yang gagal. Akun / IP Anda dibatasi selama 15 menit demi keamanan."
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,
-          message: authError?.message ?? "Invalid credentials",
+          message:
+            authError?.message ||
+            `Kredensial tidak valid. Sisa percobaan: ${failRecord.remaining}`,
         },
         { status: 401 }
       );
@@ -74,12 +124,16 @@ export async function POST(request: Request) {
 
     if (!profile) {
       return NextResponse.json(
-        { success: false, message: "User profile not found. Contact admin." },
+        { success: false, message: "Profil pengguna tidak ditemukan. Hubungi administrator." },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
+    // Login succeeded: reset rate limit counter
+    resetMemoryRateLimit(rateLimitIdentifier, LIMIT_CONFIGS.AUTH_LOGIN.prefix);
+
+    const { setSessionCookie } = await import("@/lib/auth-session");
+    const response = NextResponse.json({
       success: true,
       user: profile,
       session: {
@@ -87,10 +141,18 @@ export async function POST(request: Request) {
         refreshToken: authData.session?.refresh_token,
       },
     });
+
+    return setSessionCookie(response, {
+      id: profile.id,
+      email: profile.email,
+      fullName: profile.fullName,
+      role: profile.role,
+      department: profile.department,
+    });
   } catch (error) {
     console.error("[POST /api/v1/auth/login]", error);
     return NextResponse.json(
-      { success: false, message: "Internal server error" },
+      { success: false, message: "Terjadi kesalahan pada server" },
       { status: 500 }
     );
   }

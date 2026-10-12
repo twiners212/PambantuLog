@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { PlusCircle, MessageSquare, Search, ChevronLeft, ChevronRight } from "lucide-react"
+import { useTicketSearch } from "@/hooks/useTicketSearch"
 
 const statusConfig: Record<string, { label: string, classes: string }> = {
   open: { label: 'Open', classes: 'bg-secondary/10 text-secondary' },
@@ -17,71 +18,35 @@ const statusConfig: Record<string, { label: string, classes: string }> = {
   closed: { label: 'Closed', classes: 'bg-muted text-muted-foreground' },
 }
 
-interface TicketWithRelations {
-  id: string
-  title: string
-  description: string
-  status: string
-  priority: string
-  createdAt: string
-  category: { id: string; name: string } | null
-  createdBy: { id: string; fullName: string } | null
-}
-
 export default function MyTicketsPage() {
-  const [tickets, setTickets] = useState<TicketWithRelations[]>([])
-  const [categories, setCategories] = useState<{id: string, name: string}[]>([])
-  const [loading, setLoading] = useState(true)
-  
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [currentPage, setCurrentPage] = useState(1)
-  const ITEMS_PER_PAGE = 5
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+
+  const {
+    searchTerm: searchQuery,
+    setSearchTerm: setSearchQuery,
+    statusFilter,
+    setStatusFilter,
+    categoryFilter,
+    setCategoryFilter,
+    setPage,
+    tickets,
+    pagination,
+    isLoading: loading,
+  } = useTicketSearch({
+    viewType: "my_tickets",
+    initialLimit: 5,
+  })
 
   useEffect(() => {
-    const fetchTicketsAndMeta = async () => {
-      try {
-        const [ticketRes, catRes] = await Promise.all([
-          fetch("/api/v1/tickets?view=my_tickets"),
-          fetch("/api/v1/categories")
-        ]);
-        const ticketData = await ticketRes.json()
-        const catData = await catRes.json()
-        
-        setTickets(ticketData.data || [])
+    fetch("/api/v1/categories")
+      .then((res) => res.json())
+      .then((catData) => {
         if (catData.success) setCategories(catData.data || [])
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchTicketsAndMeta()
+      })
+      .catch((err) => console.error("Failed to load categories:", err))
   }, [])
 
-  const filteredTickets = tickets.filter(t => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (categoryFilter !== "all" && t.category?.id !== categoryFilter) return false;
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      if (!t.title.toLowerCase().includes(q) && !t.id.toLowerCase().includes(q)) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / ITEMS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-
-  const paginatedTickets = filteredTickets.slice(
-    (safePage - 1) * ITEMS_PER_PAGE,
-    safePage * ITEMS_PER_PAGE
-  );
-
-  if (loading) {
+  if (loading && tickets.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -108,29 +73,26 @@ export default function MyTicketsPage() {
             <h1 className="text-3xl font-bold tracking-tight text-primary">My Tickets</h1>
             <p className="text-muted-foreground mt-2">Track the status of your requests</p>
           </div>
-          <Link href="/employee/create">
-            <Button className="flex items-center gap-2 w-full md:w-auto">
-              <PlusCircle className="w-4 h-4" />
-              <span>New Ticket</span>
+          <Link href="/employee/tickets/new">
+            <Button className="w-full md:w-auto shadow-sm">
+              <PlusCircle className="mr-2 h-4 w-4" /> New Ticket
             </Button>
           </Link>
         </div>
 
+        {/* Filter & Search Bar */}
         <div className="flex flex-col sm:flex-row items-center gap-3 bg-muted/30 p-3 rounded-xl border border-border/50">
           <div className="relative w-full sm:flex-1 shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search..." 
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 bg-card"
             />
           </div>
 
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
             <SelectTrigger className="bg-background w-full sm:w-[150px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -144,25 +106,29 @@ export default function MyTicketsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v)}>
             <SelectTrigger className="bg-background w-full sm:w-[150px]">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Category</SelectItem>
-              {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {paginatedTickets.length === 0 ? (
+        {tickets.length === 0 ? (
           <Card className="p-12 text-center text-muted-foreground">
             No tickets match your filters.
           </Card>
         ) : (
-          paginatedTickets.map(ticket => {
+          tickets.map((ticket) => {
             const status = statusConfig[ticket.status]
             
             return (
@@ -178,15 +144,15 @@ export default function MyTicketsPage() {
                           {status?.label}
                         </span>
                       </div>
-                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                      <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                         {ticket.title}
                       </h3>
-                      <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                      <p className="text-muted-foreground text-sm mt-1 line-clamp-2">
                         {ticket.description}
                       </p>
                     </div>
-                    
-                    <div className="flex items-center gap-6 shrink-0 text-sm text-muted-foreground">
+
+                    <div className="flex items-center gap-6 text-sm text-muted-foreground shrink-0 border-t md:border-t-0 pt-4 md:pt-0">
                       <div className="flex flex-col items-end">
                         <span className="font-semibold text-foreground">{ticket.category?.name}</span>
                         <span>{new Date(ticket.createdAt).toLocaleDateString()}</span>
@@ -204,28 +170,30 @@ export default function MyTicketsPage() {
       </div>
 
       {/* Pagination Footer */}
-      {!loading && filteredTickets.length > 0 && (
+      {!loading && pagination.totalItems > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
           <p className="text-sm text-muted-foreground">
-            Showing {(safePage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(safePage * ITEMS_PER_PAGE, filteredTickets.length)} of {filteredTickets.length} tickets
+            Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+            {Math.min(pagination.page * pagination.limit, pagination.totalItems)} of{" "}
+            {pagination.totalItems} tickets
           </p>
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safePage === 1}
+              onClick={() => setPage(pagination.page - 1)}
+              disabled={!pagination.hasPrevPage}
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Prev
             </Button>
             <div className="text-sm font-medium px-2 text-foreground">
-              Page {safePage} of {totalPages}
+              Page {pagination.page} of {pagination.totalPages}
             </div>
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={safePage === totalPages}
+              onClick={() => setPage(pagination.page + 1)}
+              disabled={!pagination.hasNextPage}
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />
             </Button>

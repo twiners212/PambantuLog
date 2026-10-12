@@ -18,8 +18,6 @@ const statusConfig: Record<string, { label: string, classes: string }> = {
   closed: { label: 'Closed', classes: 'bg-muted text-muted-foreground border-outline-variant' },
 }
 
-const STATUS_SEQUENCE = ['open', 'in_progress', 'pending', 'resolved', 'closed']
-
 interface TicketDetail {
   id: string
   title: string
@@ -45,6 +43,17 @@ interface CommentData {
   user: { id: string; fullName: string; email: string; role: string } | null
 }
 
+function parseAttachmentUrls(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((u) => typeof u === "string");
+  } catch {
+    // not JSON, treats as single URL
+  }
+  return [raw];
+}
+
 export default function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const id = resolvedParams.id
@@ -58,18 +67,23 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null)
   
   const [agents, setAgents] = useState<{id: string, fullName: string, email: string, department: string, role: string}[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
 
-  const handleOpenPreview = () => {
+  const handleOpenPreview = (url: string) => {
+    setActivePreviewUrl(url)
     setShowPreview(true)
     setTimeout(() => setPreviewOpen(true), 10)
   }
 
   const handleClosePreview = () => {
     setPreviewOpen(false)
-    setTimeout(() => setShowPreview(false), 300)
+    setTimeout(() => {
+      setShowPreview(false)
+      setActivePreviewUrl(null)
+    }, 300)
   }
 
   useEffect(() => {
@@ -122,11 +136,8 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     }
   }
 
-  const handleNextStatus = async () => {
-    if (!ticket) return
-    const currentIndex = STATUS_SEQUENCE.indexOf(ticket.status)
-    const nextStatus = STATUS_SEQUENCE[(currentIndex + 1) % STATUS_SEQUENCE.length]
-    
+  const handleStatusChange = async (nextStatus: string) => {
+    if (!ticket || nextStatus === ticket.status) return
     setIsUpdatingStatus(true)
     try {
       const res = await fetch(`/api/v1/tickets/${id}/status`, {
@@ -243,10 +254,24 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           </div>
           
           {isPrivileged && (
-            <div className="flex items-center gap-3 shrink-0">
-              <Button onClick={handleNextStatus} disabled={isUpdatingStatus} className="min-w-[140px]">
-                {isUpdatingStatus ? "Updating..." : `Set to ${statusConfig[STATUS_SEQUENCE[(STATUS_SEQUENCE.indexOf(ticket.status) + 1) % STATUS_SEQUENCE.length]]?.label}`}
-              </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm font-medium text-muted-foreground hidden sm:inline">Ubah Status:</span>
+              <Select
+                value={ticket.status}
+                onValueChange={handleStatusChange}
+                disabled={isUpdatingStatus}
+              >
+                <SelectTrigger className="w-[170px] bg-background">
+                  <SelectValue placeholder="Pilih status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="pending">Waiting on User</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
@@ -297,34 +322,44 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               </p>
             </div>
             <div className="border-t border-border p-6 bg-card">
-              <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                <Paperclip className="w-4 h-4" /> Attachments ({ticket.attachmentUrl ? 1 : 0})
-              </h4>
-              {ticket.attachmentUrl ? (
-                <div className="mt-2">
-                  <button 
-                    onClick={handleOpenPreview}
-                    className="flex items-center gap-3 px-4 py-3 bg-background border border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left w-full sm:w-auto min-w-[250px] shadow-sm group"
-                  >
-                    <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform">
-                      <Paperclip className="w-5 h-5" />
-                    </div>
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
-                        {ticket.attachmentUrl.split('/').pop()?.split('?')[0] || "View Attachment"}
-                      </span>
-                      <span className="text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">Click to preview</span>
-                    </div>
-                  </button>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">No attachments provided.</p>
-              )}
+              {(() => {
+                const attachments = parseAttachmentUrls(ticket.attachmentUrl);
+                return (
+                  <>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <Paperclip className="w-4 h-4" /> Attachments ({attachments.length})
+                    </h4>
+                    {attachments.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        {attachments.map((url, idx) => (
+                          <button 
+                            key={idx}
+                            onClick={() => handleOpenPreview(url)}
+                            className="flex items-center gap-3 px-4 py-3 bg-background border border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left w-full sm:w-auto min-w-[200px] shadow-sm group"
+                          >
+                            <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform">
+                              <Paperclip className="w-5 h-5" />
+                            </div>
+                            <div className="flex flex-col overflow-hidden max-w-[200px]">
+                              <span className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                                {url.split('/').pop()?.split('?')[0] || `Attachment ${idx + 1}`}
+                              </span>
+                              <span className="text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">Click to preview</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">No attachments provided.</p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
           {/* Custom Preview Modal Overlay */}
-          {ticket.attachmentUrl && showPreview && (
+          {activePreviewUrl && showPreview && (
             <div 
               className={cn(
                 "fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm transition-opacity duration-300 ease-in-out",
@@ -348,16 +383,16 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 )} 
                 onClick={e => e.stopPropagation()}
               >
-                {ticket.attachmentUrl.includes('.pdf') ? (
+                {activePreviewUrl.includes('.pdf') ? (
                   <iframe 
-                    src={ticket.attachmentUrl} 
+                    src={activePreviewUrl} 
                     className="w-full h-full rounded-xl shadow-2xl bg-white" 
                     title="PDF Preview"
                   />
                 ) : (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img 
-                    src={ticket.attachmentUrl} 
+                    src={activePreviewUrl} 
                     alt="Attachment Preview" 
                     className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
                   />
