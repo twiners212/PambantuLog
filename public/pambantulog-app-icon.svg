@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-app-icon">
+  <title id="title-app-icon">PambantuLog App Icon</title>
+  <!-- Modern Squircle Tile -->
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="#00163A"/>
+  <!-- Symbol scaled and centered -->
+  <g transform="translate(32, 28) scale(0.75)">
+    <!-- Vertical Timeline Stem (White) -->
+    <rect x="48" y="36" width="44" height="184" rx="4" fill="#FFFFFF"/>
+    <!-- Ticket Loop (Golden Amber) -->
+    <path fill="#DCA12D" fill-rule="evenodd" d="
+      M 98 36
+      H 144
+      A 64 64 0 0 1 206 76
+      A 16 16 0 0 0 206 108
+      A 64 64 0 0 1 144 148
+      H 98
+      Z
+      M 98 72
+      H 144
+      A 20 20 0 0 1 164 92
+      A 20 20 0 0 1 144 112
+      H 98
+      Z
+    "/>
+  </g>
+</svg>

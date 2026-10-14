@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Headset, Ticket, PlusCircle, List, UserPlus, Settings, Activity } from "lucide-react"
+import Image from "next/image"
+import { Ticket, PlusCircle, List, UserPlus, Settings, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
 
@@ -25,8 +26,8 @@ export function Sidebar() {
   return (
     <nav className="flex flex-col gap-1 p-4 fixed md:relative z-40 left-0 top-0 h-full w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border hidden md:flex shrink-0">
       <div className="mb-12 px-2 flex items-center gap-3">
-        <div aria-label="Organization Logo" className="w-10 h-10 rounded-lg bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground font-bold shadow-sm">
-          <Headset className="w-6 h-6" />
+        <div aria-label="Organization Logo" className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center shadow-sm shrink-0">
+          <Image src="/pambantulog-app-icon.svg" alt="PambantuLog Logo" width={40} height={40} priority />
         </div>
         <div>
           <h1 className="text-xl font-bold text-sidebar-foreground">PambantuLog</h1>

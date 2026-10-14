@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>PambantuLog</title><g transform="translate(-20.93 -23.3) scale(1.182)">
+  <title id="title-small">PambantuLog Symbol 16px Cut</title>
+  <!-- Optically adjusted for 16-32px scale: wider notch, expanded aperture -->
+  <path fill="#00163A" fill-rule="evenodd" d="
+    M 36 24
+    H 148
+    A 72 72 0 0 1 216 70
+    A 24 24 0 0 0 216 114
+    A 72 72 0 0 1 148 160
+    H 96
+    V 232
+    H 36
+    Z
+    M 96 66
+    H 146
+    A 26 26 0 0 1 172 92
+    A 26 26 0 0 1 146 118
+    H 96
+    Z
+  "/>
+</g></svg>

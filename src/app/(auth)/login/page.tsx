@@ -4,7 +4,8 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Headset, ArrowRight, ShieldCheck, Zap, Server } from "lucide-react"
+import Image from "next/image"
+import { ArrowRight, ShieldCheck, Zap, Server } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 
 export default function LoginPage() {
@@ -88,10 +89,10 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-lg">
-            <Headset className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shadow-lg shrink-0">
+            <Image src="/pambantulog-app-icon.svg" alt="PambantuLog Logo" width={48} height={48} priority />
           </div>
-          <span className="text-2xl font-extrabold tracking-tight text-primary">PambantuLog</span>
+          <span className="text-2xl font-extrabold tracking-tight text-foreground">PambantuLog</span>
         </div>
 
         <div className="relative z-10 max-w-lg mt-20">
@@ -134,10 +135,10 @@ export default function LoginPage() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative">
         {/* Mobile Logo Only */}
         <div className="absolute top-8 left-8 lg:hidden flex items-center gap-2">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-md">
-            <Headset className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center shadow-md shrink-0">
+            <Image src="/pambantulog-app-icon.svg" alt="PambantuLog Logo" width={40} height={40} priority />
           </div>
-          <span className="text-xl font-bold text-primary">PambantuLog</span>
+          <span className="text-xl font-bold text-foreground">PambantuLog</span>
         </div>
 
         <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">

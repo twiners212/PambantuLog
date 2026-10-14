@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Menu, Bell, User, LogOut, Moon, Sun, CheckCircle2, Ticket, PlusCircle, Activity, List, UserPlus, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
@@ -136,7 +137,10 @@ export function Header() {
             })}
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent md:hidden">PambantuLog</div>
+        <div className="flex items-center gap-2 md:hidden">
+          <Image src="/pambantulog-app-icon.svg" alt="PambantuLog Logo" width={28} height={28} className="rounded-md shrink-0" />
+          <span className="text-xl font-bold text-foreground">PambantuLog</span>
+        </div>
       </div>
       
       <div className="flex items-center gap-4">
