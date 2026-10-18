@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -22,21 +23,55 @@ export const SESSION_COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60, // 7 days
 };
 
-/**
- * Encodes session payload to cookie value
- */
-export function encodeSession(payload: SessionPayload): string {
-  return Buffer.from(JSON.stringify(payload)).toString("base64");
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  "pambantulog-secret-session-key-dev-fallback-32chars";
+
+function signPayload(base64Payload: string): string {
+  return crypto
+    .createHmac("sha256", SESSION_SECRET)
+    .update(base64Payload)
+    .digest("hex");
 }
 
 /**
- * Decodes session payload from cookie value
+ * Encodes session payload to signed cookie value (<base64>.<hmacSignature>)
+ */
+export function encodeSession(payload: SessionPayload): string {
+  const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
+  const signature = signPayload(base64);
+  return `${base64}.${signature}`;
+}
+
+/**
+ * Decodes and cryptographically verifies session payload from cookie value
  */
 export function decodeSession(cookieValue: string): SessionPayload | null {
   try {
-    const json = Buffer.from(cookieValue, "base64").toString("utf-8");
+    const parts = cookieValue.split(".");
+    if (parts.length !== 2) return null;
+    const [base64, signature] = parts;
+    if (!base64 || !signature) return null;
+
+    const expectedSignature = signPayload(base64);
+    const sigBuffer = Buffer.from(signature, "hex");
+    const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+    if (
+      sigBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(sigBuffer, expectedBuffer)
+    ) {
+      return null;
+    }
+
+    const json = Buffer.from(base64, "base64").toString("utf-8");
     const parsed = JSON.parse(json);
-    if (parsed && typeof parsed.id === "string" && typeof parsed.role === "string") {
+    if (
+      parsed &&
+      typeof parsed.id === "string" &&
+      typeof parsed.role === "string"
+    ) {
       return parsed as SessionPayload;
     }
     return null;

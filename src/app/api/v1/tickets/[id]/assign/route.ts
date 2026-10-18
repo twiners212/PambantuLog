@@ -23,7 +23,12 @@ export async function PATCH(
 
     if (!isSupabaseConfigured) {
       // Mock mode
-      return NextResponse.json({ success: true, data: { id, assignedToId } });
+      const { mockTickets } = await import("@/lib/mock-data");
+      const target = mockTickets.find((t) => t.id === id);
+      if (target) {
+        target.assignedToId = assignedToId || null;
+      }
+      return NextResponse.json({ success: true, data: { id, assignedToId: assignedToId || null } });
     }
 
     const { createSupabaseServerClient } = await import("@/lib/supabase-server");
@@ -34,13 +39,27 @@ export async function PATCH(
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
+    let userRole: string | undefined;
+    let userId: string | undefined;
+
+    if (user) {
+      const [profile] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
+      userRole = profile?.role;
+      userId = user.id;
+    } else {
+      const { getServerSession } = await import("@/lib/auth-session");
+      const session = await getServerSession();
+      if (session) {
+        userRole = session.role;
+        userId = session.id;
+      }
+    }
+
+    if (!userId || !userRole) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    // Optional: check if the logged in user is admin/agent before allowing assignment
-    const [profile] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
-    if (!profile || profile.role === "karyawan") {
+    if (userRole === "karyawan") {
       return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
     }
 

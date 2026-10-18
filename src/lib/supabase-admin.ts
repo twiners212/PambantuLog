@@ -16,6 +16,24 @@ export function getSupabaseAdmin(): SupabaseClient | null {
   return _adminClient;
 }
 
+export function isSupabaseAdminConfigured(): boolean {
+  return !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
+function createStub(path: string[] = []): unknown {
+  return new Proxy(() => {}, {
+    get(_t, nextProp) {
+      if (nextProp === "then" || typeof nextProp === "symbol") return undefined;
+      return createStub([...path, String(nextProp)]);
+    },
+    apply() {
+      throw new Error(
+        `[supabaseAdmin] Method '${path.join(".")}' called, but SUPABASE_SERVICE_ROLE_KEY is not configured.`
+      );
+    },
+  });
+}
+
 /**
  * Supabase Admin client (service-role key).
  *
@@ -33,7 +51,7 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
       console.warn(
         `[supabaseAdmin] Properti '${String(prop)}' diakses namun variabel SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.`
       );
-      return undefined;
+      return createStub([String(prop)]);
     }
     const val = (client as unknown as Record<string | symbol, unknown>)[prop];
     return typeof val === "function" ? val.bind(client) : val;

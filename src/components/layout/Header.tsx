@@ -91,7 +91,6 @@ export function Header() {
       }
     }
 
-    localStorage.removeItem("pambantulog_mock_user")
     window.location.href = "/login"
   }
 

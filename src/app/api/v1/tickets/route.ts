@@ -51,6 +51,9 @@ export async function GET(request: Request) {
     const { page, limit, offset } = parsePaginationParams(url.searchParams);
 
     if (!isSupabaseConfigured) {
+      const { getServerSession } = await import("@/lib/auth-session");
+      const session = await getServerSession();
+
       // Mock mode
       let data = mockTickets.map((t) => ({
         ...t,
@@ -58,6 +61,22 @@ export async function GET(request: Request) {
         createdBy: mockUsers.find((u) => u.id === t.createdById) ?? null,
         assignedTo: mockUsers.find((u) => u.id === t.assignedToId) ?? null,
       }));
+
+      // Apply view / role ownership filter in mock mode
+      if (viewType === "my_tickets" || session?.role === "karyawan") {
+        const userId = session?.id || "user-3";
+        data = data.filter((t) => t.createdById === userId);
+      } else if (session?.role === "agent") {
+        if (assigneeFilter === "unassigned") {
+          data = data.filter((t) => !t.assignedToId);
+        } else if (assigneeFilter && assigneeFilter !== "all") {
+          data = data.filter((t) => t.assignedToId === assigneeFilter);
+        } else {
+          data = data.filter(
+            (t) => !t.assignedToId || t.assignedToId === session.id
+          );
+        }
+      }
 
       // Apply search & filters
       if (searchQuery) {
@@ -74,7 +93,7 @@ export async function GET(request: Request) {
       if (categoryFilter && categoryFilter !== "all") {
         data = data.filter((t) => t.categoryId === categoryFilter);
       }
-      if (assigneeFilter && assigneeFilter !== "all") {
+      if (assigneeFilter && assigneeFilter !== "all" && session?.role !== "agent") {
         if (assigneeFilter === "unassigned") {
           data = data.filter((t) => !t.assignedToId);
         } else {
@@ -127,21 +146,17 @@ export async function GET(request: Request) {
     if (viewType === "my_tickets" || profile.role === "karyawan") {
       conditions.push(eq(tickets.createdById, user.id));
     } else if (profile.role === "agent") {
-      conditions.push(eq(tickets.assignedToId, user.id));
-    }
-
-    if (statusFilter && statusFilter !== "all") {
-      conditions.push(
-        eq(
-          tickets.status,
-          statusFilter as "open" | "in_progress" | "pending" | "resolved" | "closed"
-        )
-      );
-    }
-    if (categoryFilter && categoryFilter !== "all") {
-      conditions.push(eq(tickets.categoryId, categoryFilter));
-    }
-    if (assigneeFilter && assigneeFilter !== "all") {
+      if (assigneeFilter === "unassigned") {
+        conditions.push(isNull(tickets.assignedToId));
+      } else if (assigneeFilter && assigneeFilter !== "all") {
+        conditions.push(eq(tickets.assignedToId, assigneeFilter));
+      } else {
+        // By default, agents see tickets assigned to them AND unassigned tickets requiring pickup
+        conditions.push(
+          or(eq(tickets.assignedToId, user.id), isNull(tickets.assignedToId))
+        );
+      }
+    } else if (assigneeFilter && assigneeFilter !== "all") {
       if (assigneeFilter === "unassigned") {
         conditions.push(isNull(tickets.assignedToId));
       } else {
@@ -285,13 +300,16 @@ export async function POST(request: Request) {
     );
 
     if (!isSupabaseConfigured) {
+      const { getServerSession } = await import("@/lib/auth-session");
+      const session = await getServerSession();
+
       const newTicket = {
         id: `HD-${Math.floor(Math.random() * 10000)}`,
         title,
         description,
         status: "open",
         priority: dbPriority,
-        createdById: "user-3",
+        createdById: session?.id || "user-3",
         assignedToId: null,
         categoryId,
         attachmentUrl: file ? "mock-url" : serializedAttachment,

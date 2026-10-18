@@ -73,7 +73,7 @@ export default function MyTicketsPage() {
             <h1 className="text-3xl font-bold tracking-tight text-primary">My Tickets</h1>
             <p className="text-muted-foreground mt-2">Track the status of your requests</p>
           </div>
-          <Link href="/employee/tickets/new">
+          <Link href="/employee/create">
             <Button className="w-full md:w-auto shadow-sm">
               <PlusCircle className="mr-2 h-4 w-4" /> New Ticket
             </Button>

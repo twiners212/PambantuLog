@@ -49,9 +49,18 @@ export async function POST(request: Request) {
 
     // ── Mock mode (no Supabase env vars) ──────────────────────────────────
     if (!isSupabaseConfigured) {
-      const user = mockUsers.find((u) => u.email === normalizedEmail);
+      let user = mockUsers.find((u) => u.email === normalizedEmail);
+      if (!user && normalizedEmail === "karyawan@company.com") {
+        user = mockUsers.find((u) => u.role === "karyawan");
+      }
 
-      if (user && password === "password123") {
+      const isValidPassword =
+        password === "password123" ||
+        (user?.role === "admin" && password === "admin123") ||
+        (user?.role === "karyawan" && password === "user123") ||
+        (user?.role === "agent" && password === "support123");
+
+      if (user && isValidPassword) {
         // Success: reset failed attempts
         const response = NextResponse.json({
           success: true,

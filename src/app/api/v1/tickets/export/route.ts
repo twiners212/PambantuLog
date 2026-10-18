@@ -57,14 +57,33 @@ export async function GET(request: Request) {
     const { startDate, endDate } = dateCheck;
 
     // ── 2. Authentication & Cooldown Check ──────────────────────────────
-    const { getServerSession } = await import("@/lib/auth-session");
+    const { getServerSession, decodeSession, SESSION_COOKIE_NAME } = await import("@/lib/auth-session");
     let currentUser: { id: string; role: "admin" | "agent" | "karyawan"; fullName?: string } | null = null;
 
     const session = await getServerSession();
     if (session) {
       currentUser = { id: session.id, role: session.role, fullName: session.fullName };
-    } else if (isSupabaseConfigured) {
+    } else {
+      const cookieHeader = request.headers.get("cookie");
+      if (cookieHeader) {
+        const cookies = cookieHeader.split(";").map((c) => c.trim());
+        const sessionCookie = cookies.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+        if (sessionCookie) {
+          const val = sessionCookie.substring(sessionCookie.indexOf("=") + 1);
+          const decoded = decodeSession(val);
+          if (decoded) {
+            currentUser = { id: decoded.id, role: decoded.role, fullName: decoded.fullName };
+          }
+        }
+      }
+    }
+
+    if (!currentUser && isSupabaseConfigured) {
       const { createSupabaseServerClient } = await import("@/lib/supabase-server");
+      const { db } = await import("@/db");
+      const { users } = await import("@/db/schema");
+      const { eq } = await import("drizzle-orm");
+
       const supabase = await createSupabaseServerClient();
       if (supabase) {
         const {
@@ -72,10 +91,11 @@ export async function GET(request: Request) {
         } = await supabase.auth.getUser();
 
         if (user) {
+          const [profile] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
           currentUser = {
             id: user.id,
-            role: (user.user_metadata?.role as "admin" | "agent" | "karyawan") || "karyawan",
-            fullName: user.user_metadata?.full_name,
+            role: (profile?.role || user.user_metadata?.role || "karyawan") as "admin" | "agent" | "karyawan",
+            fullName: profile?.fullName || user.user_metadata?.full_name,
           };
         }
       }
@@ -123,6 +143,10 @@ export async function GET(request: Request) {
           if (currentUser.role === "karyawan" && t.createdById !== currentUser.id) {
             return false;
           }
+          // RBAC isolation: agen hanya boleh mengekspor tiket milik sendiri atau tiket unassigned
+          if (currentUser.role === "agent" && t.assignedToId && t.assignedToId !== currentUser.id) {
+            return false;
+          }
           return true;
         })
         .slice(0, MAX_EXPORT_ROW_LIMIT)
@@ -146,16 +170,27 @@ export async function GET(request: Request) {
       // Real mode: Drizzle ORM query with date filters, RBAC, and hard limit
       const { db } = await import("@/db");
       const { tickets } = await import("@/db/schema");
-      const { gte, lte, and, eq } = await import("drizzle-orm");
+      const { gte, lte, and, eq, or, isNull } = await import("drizzle-orm");
 
       const whereConditions = [
         gte(tickets.createdAt, startDate),
         lte(tickets.createdAt, endDate),
       ];
 
-      // RBAC isolation: karyawan hanya boleh mengekspor tiket miliknya sendiri
+      // RBAC isolation:
+      // - karyawan: hanya tiket miliknya sendiri
+      // - agent: tiket milik sendiri atau tiket unassigned
+      // - admin: seluruh tiket organisasi
       if (currentUser.role === "karyawan") {
         whereConditions.push(eq(tickets.createdById, currentUser.id));
+      } else if (currentUser.role === "agent") {
+        const agentCondition = or(
+          eq(tickets.assignedToId, currentUser.id),
+          isNull(tickets.assignedToId)
+        );
+        if (agentCondition) {
+          whereConditions.push(agentCondition);
+        }
       }
 
       const dbTickets = await db.query.tickets.findMany({

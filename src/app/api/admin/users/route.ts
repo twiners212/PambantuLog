@@ -56,12 +56,28 @@ export async function POST(request: Request) {
       );
     }
 
+    const userRole = (role || "karyawan") as "admin" | "agent" | "karyawan";
+    if (!["admin", "agent", "karyawan"].includes(userRole)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid role. Must be 'admin', 'agent', or 'karyawan'",
+        },
+        { status: 400 }
+      );
+    }
+
     // ── 4. Create auth user via the service-role client ─────────────────
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true, // skip email verification for internal users
+        user_metadata: {
+          role: userRole,
+          full_name: fullName,
+          department: department ?? null,
+        },
       });
 
     if (authError || !authData.user) {
@@ -74,17 +90,35 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── 5. Insert profile row via Drizzle ───────────────────────────────
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        id: authData.user.id, // sync with auth.users.id
-        fullName,
-        email,
-        role: role ?? "karyawan",
-        department: department ?? null,
-      })
-      .returning();
+    // ── 5. Insert profile row via Drizzle (with rollback on failure) ────
+    let newUser;
+    try {
+      const [inserted] = await db
+        .insert(users)
+        .values({
+          id: authData.user.id, // sync with auth.users.id
+          fullName,
+          email,
+          role: userRole,
+          department: department ?? null,
+        })
+        .returning();
+      newUser = inserted;
+    } catch (dbErr) {
+      console.error(
+        "[POST /api/admin/users] DB insert failed, rolling back auth user:",
+        dbErr
+      );
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      } catch (cleanupErr) {
+        console.error(
+          "[POST /api/admin/users] Failed to clean up auth user:",
+          cleanupErr
+        );
+      }
+      throw dbErr;
+    }
 
     return NextResponse.json({ success: true, data: newUser }, { status: 201 });
   } catch (error) {

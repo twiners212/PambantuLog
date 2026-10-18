@@ -1,11 +1,44 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { tickets, ticketComments, users } from "@/db/schema";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { eq, ne, desc, and } from "drizzle-orm";
+import { mockComments, mockTickets, mockUsers } from "@/lib/mock-data";
+import { getServerSession } from "@/lib/auth-session";
+
+const isSupabaseConfigured =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export async function GET() {
   try {
+    if (!isSupabaseConfigured) {
+      const session = await getServerSession();
+      if (!session) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+
+      // Filter mock comments by others on relevant tickets
+      const notifs = mockComments
+        .filter((c) => c.authorId !== session.id)
+        .slice(0, 5)
+        .map((c) => {
+          const ticket = mockTickets.find((t) => t.id === c.ticketId);
+          const author = mockUsers.find((u) => u.id === c.authorId);
+          return {
+            id: c.id,
+            message: c.content,
+            createdAt: c.createdAt,
+            ticketId: c.ticketId,
+            ticketTitle: ticket?.title || "Ticket Update",
+            authorName: author?.fullName || "Support",
+          };
+        });
+
+      return NextResponse.json({ success: true, data: notifs });
+    }
+
+    const { db } = await import("@/db");
+    const { tickets, ticketComments, users } = await import("@/db/schema");
+    const { createSupabaseServerClient } = await import("@/lib/supabase-server");
+    const { eq, ne, desc, and } = await import("drizzle-orm");
+
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 

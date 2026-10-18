@@ -111,30 +111,75 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { fullName, department } = body;
 
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { getServerSession, setSessionCookie } = await import("@/lib/auth-session");
+    const session = await getServerSession();
 
     // Check mock mode
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-       return NextResponse.json({ success: true, message: "Mock profile updated" });
+      if (!session) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+      const updatedUser = {
+        id: session.id,
+        email: session.email,
+        fullName: fullName || session.fullName,
+        role: session.role,
+        department: department !== undefined ? department : session.department,
+      };
+      const response = NextResponse.json({
+        success: true,
+        message: "Profile updated successfully",
+        user: updatedUser,
+      });
+      return setSessionCookie(response, updatedUser);
     }
 
-    if (!user) {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const userId = user?.id || session?.id;
+    if (!userId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
       );
     }
 
+    const updateData: { fullName?: string; department?: string } = {};
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (department !== undefined) updateData.department = department;
+
     await db
       .update(users)
-      .set({
-        fullName,
-        department,
-      })
-      .where(eq(users.id, user.id));
+      .set(updateData)
+      .where(eq(users.id, userId));
 
-    return NextResponse.json({ success: true, message: "Profile updated successfully" });
+    const [updatedProfile] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const response = NextResponse.json({
+      success: true,
+      message: "Profile updated successfully",
+      user: updatedProfile,
+    });
+
+    if (updatedProfile) {
+      return setSessionCookie(response, {
+        id: updatedProfile.id,
+        email: updatedProfile.email,
+        fullName: updatedProfile.fullName,
+        role: updatedProfile.role as "admin" | "agent" | "karyawan",
+        department: updatedProfile.department,
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error("[PATCH /api/v1/auth/me]", error);
     return NextResponse.json(

@@ -214,7 +214,7 @@ export default function LoginPage() {
                 variant="outline" 
                 className="w-full text-xs h-10 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors border-border/60" 
                 disabled={loading}
-                onClick={() => quickLogin('admin@company.com', 'admin123')}
+                onClick={() => quickLogin('admin@company.com', 'password123')}
               >
                 Admin Login
               </Button>
@@ -223,7 +223,7 @@ export default function LoginPage() {
                 variant="outline" 
                 className="w-full text-xs h-10 rounded-lg hover:bg-chart-2/5 hover:text-chart-2 transition-colors border-border/60" 
                 disabled={loading}
-                onClick={() => quickLogin('karyawan@company.com', 'user123')}
+                onClick={() => quickLogin('s.jenkins@company.com', 'password123')}
               >
                 User Login
               </Button>
@@ -232,7 +232,7 @@ export default function LoginPage() {
                 variant="outline" 
                 className="w-full text-xs h-10 rounded-lg hover:bg-chart-4/5 hover:text-chart-4 transition-colors border-border/60" 
                 disabled={loading}
-                onClick={() => quickLogin('john@support', 'support123')}
+                onClick={() => quickLogin('john@support', 'password123')}
               >
                 Agent Login
               </Button>

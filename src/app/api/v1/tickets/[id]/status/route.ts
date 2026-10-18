@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { tickets, users } from "@/db/schema";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { eq } from "drizzle-orm";
+import { mockTickets } from "@/lib/mock-data";
+import { getServerSession } from "@/lib/auth-session";
+
+const isSupabaseConfigured =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // ── Valid status transitions (state machine) ────────────────────────────────
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -28,8 +30,56 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const body = await request.json();
+    const { status: newStatus } = body;
 
-    // ── 1. Authenticate ─────────────────────────────────────────────────
+    if (!newStatus) {
+      return NextResponse.json(
+        { success: false, message: "Missing required field: status" },
+        { status: 400 }
+      );
+    }
+
+    // ── 1. Mock Mode ────────────────────────────────────────────────────
+    if (!isSupabaseConfigured) {
+      const session = await getServerSession();
+      if (!session || (session.role !== "admin" && session.role !== "agent")) {
+        return NextResponse.json(
+          { success: false, message: "Forbidden: Agent or Admin role required" },
+          { status: 403 }
+        );
+      }
+
+      const mockTicket = mockTickets.find((t) => t.id === id);
+      if (!mockTicket) {
+        return NextResponse.json(
+          { success: false, message: "Ticket not found" },
+          { status: 404 }
+        );
+      }
+
+      const allowed = VALID_TRANSITIONS[mockTicket.status] ?? [];
+      if (!allowed.includes(newStatus)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Invalid transition: ${mockTicket.status} → ${newStatus}. Allowed: [${allowed.join(", ")}]`,
+          },
+          { status: 422 }
+        );
+      }
+
+      mockTicket.status = newStatus as typeof mockTicket.status;
+      mockTicket.updatedAt = new Date().toISOString();
+      return NextResponse.json({ success: true, data: mockTicket });
+    }
+
+    // ── 2. Real Mode ────────────────────────────────────────────────────
+    const { createSupabaseServerClient } = await import("@/lib/supabase-server");
+    const { db } = await import("@/db");
+    const { tickets, users } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
     const supabase = await createSupabaseServerClient();
     const {
       data: { user },
@@ -42,7 +92,6 @@ export async function PATCH(
       );
     }
 
-    // ── 2. Verify caller is agent or admin ──────────────────────────────
     const [profile] = await db
       .select()
       .from(users)
@@ -53,17 +102,6 @@ export async function PATCH(
       return NextResponse.json(
         { success: false, message: "Forbidden: Agent or Admin role required" },
         { status: 403 }
-      );
-    }
-
-    // ── 3. Parse body ───────────────────────────────────────────────────
-    const body = await request.json();
-    const { status: newStatus } = body;
-
-    if (!newStatus) {
-      return NextResponse.json(
-        { success: false, message: "Missing required field: status" },
-        { status: 400 }
       );
     }
 

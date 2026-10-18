@@ -80,8 +80,16 @@ export async function validateRequestBody<T>(
       const entries: Record<string, unknown> = {};
 
       formData.forEach((value, key) => {
-        // If file, keep File instance; if string, store as string
-        entries[key] = value;
+        if (key in entries) {
+          const existing = entries[key];
+          if (Array.isArray(existing)) {
+            existing.push(value);
+          } else {
+            entries[key] = [existing, value];
+          }
+        } else {
+          entries[key] = value;
+        }
       });
 
       rawData = entries;

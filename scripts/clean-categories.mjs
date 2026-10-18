@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '.env.local') });
+dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
 const dbUrl = process.env.DATABASE_URL;
 
@@ -18,6 +18,26 @@ const sql = postgres(dbUrl);
 
 async function clean() {
   try {
+    console.log("Re-linking tickets referencing duplicate categories to canonical ID...");
+    
+    await sql`
+      WITH canonical AS (
+        SELECT name, id, ROW_NUMBER() OVER (PARTITION BY name ORDER BY id) as rn
+        FROM public.categories
+      ),
+      duplicates AS (
+        SELECT c.id as dup_id, k.id as keep_id
+        FROM public.categories c
+        JOIN canonical k ON c.name = k.name AND k.rn = 1
+        WHERE c.id != k.id
+      )
+      UPDATE public.tickets t
+      SET category_id = d.keep_id
+      FROM duplicates d
+      WHERE t.category_id = d.dup_id;
+    `;
+    console.log("Ticket category references safely updated.");
+
     console.log("Cleaning duplicate categories...");
     
     await sql`

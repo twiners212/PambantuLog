@@ -94,6 +94,20 @@ export default function AdminDashboardPage() {
   const [selectedAgent, setSelectedAgent] = useState("all")
   const [agents, setAgents] = useState<{id: string, fullName: string, department: string | null}[]>([])
 
+  // Fetch agents list once if admin
+  useEffect(() => {
+    if (isAdmin) {
+      fetch("/api/v1/users?role=agent")
+        .then((res) => res.json())
+        .then((agentData) => {
+          if (agentData.success) {
+            setAgents(agentData.data)
+          }
+        })
+        .catch((err) => console.error("Failed to fetch agents", err))
+    }
+  }, [isAdmin])
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -103,15 +117,6 @@ export default function AdminDashboardPage() {
         if (data.success) {
           setCounts(data.data.counts)
           setTotalTickets(data.data.total)
-        }
-        
-        // Fetch agents if admin
-        if (isAdmin && agents.length === 0) {
-          const agentRes = await fetch("/api/v1/users?role=agent")
-          const agentData = await agentRes.json()
-          if (agentData.success) {
-            setAgents(agentData.data)
-          }
         }
       } catch (err) {
         console.error("Failed to fetch data", err)
@@ -124,7 +129,7 @@ export default function AdminDashboardPage() {
     if (profile) {
       fetchData()
     }
-  }, [profile, isAdmin, timeRange, selectedAgent, agents.length])
+  }, [profile, timeRange, selectedAgent])
 
   const chartData = [
     { name: 'Open', count: counts.open, fill: statusConfig.open.color },

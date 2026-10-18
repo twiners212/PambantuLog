@@ -1,6 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, "..", ".env.local") });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,7 +23,13 @@ async function setup() {
     const { error } = await supabase.storage.createBucket("attachments", {
       public: true,
       fileSizeLimit: 5242880, // 5MB
-      allowedMimeTypes: ["image/png", "image/jpeg", "application/pdf"],
+      allowedMimeTypes: [
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "application/pdf",
+        "text/plain",
+      ],
     });
     if (error) {
       console.error("Error creating bucket:", error);

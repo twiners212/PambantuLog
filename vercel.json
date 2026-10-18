@@ -1,3 +1,9 @@
 {
-  "name": "pambantulog"
+  "name": "pambantulog",
+  "crons": [
+    {
+      "path": "/api/v1/ping",
+      "schedule": "0 4 * * *"
+    }
+  ]
 }

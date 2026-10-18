@@ -2,17 +2,43 @@ name: Supabase Keep-Alive Ping
 
 on:
   schedule:
-    # Run every Tuesday at 00:00 UTC
-    - cron: '0 0 * * 2'
+    # Run every 3 days at 04:00 UTC to ensure Supabase never freezes (7-day limit)
+    - cron: '0 4 */3 * *'
   workflow_dispatch: # Allows manual trigger from the GitHub UI
 
 jobs:
-  ping_supabase:
+  ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
+      - name: Ping PambantuLog Next.js App /api/v1/ping
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
+          APP_URL="${{ secrets.APP_URL }}"
+          if [ -z "$APP_URL" ]; then
+            APP_URL="https://pambantulog.vercel.app"
+          fi
+          echo "Pinging ${APP_URL}/api/v1/ping..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/v1/ping")
+          echo "Response HTTP code: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+            echo "✅ Keep-alive ping to app succeeded!"
+          else
+            echo "⚠️ App ping returned HTTP ${HTTP_CODE}. Proceeding to direct Supabase ping fallback."
+          fi
+
+      - name: Fallback Direct Supabase REST API Ping
+        if: ${{ secrets.SUPABASE_URL != '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          echo "Pinging Supabase REST API directly..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/categories?select=id&limit=1" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "Supabase REST HTTP response: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+            echo "✅ Direct Supabase ping succeeded!"
+          else
+            echo "⚠️ Direct Supabase ping returned HTTP ${HTTP_CODE}."
+          fi

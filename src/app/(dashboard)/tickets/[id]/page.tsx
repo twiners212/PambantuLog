@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BadgeAlert, Paperclip, Calendar, Badge, User as UserIcon, Send, Star, CheckCircle, X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 const statusConfig: Record<string, { label: string, classes: string }> = {
   open: { label: 'Open', classes: 'bg-secondary/10 text-secondary border-secondary/20' },
@@ -62,6 +63,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [ticket, setTicket] = useState<TicketDetail | null>(null)
   const [reply, setReply] = useState("")
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [rating, setRating] = useState<number>(0)
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
@@ -89,13 +91,18 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true)
+        setFetchError(null)
         const res = await fetch(`/api/v1/tickets/${id}`)
         const data = await res.json()
         if (data.success) {
           setTicket(data.data)
+        } else {
+          setFetchError(data.message || "Gagal memuat detail tiket")
         }
       } catch (err) {
         console.error(err)
+        setFetchError("Terjadi kesalahan jaringan saat memuat tiket.")
       } finally {
         setLoading(false)
       }
@@ -114,7 +121,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     }
   }, [profile])
 
-  const handleAssign = async (agentId: string) => {
+  const handleAssign = async (agentId: string | null) => {
     setIsAssigning(true)
     try {
       const res = await fetch(`/api/v1/tickets/${id}/assign`, {
@@ -124,13 +131,22 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
       })
       const data = await res.json()
       if (data.success) {
-        const assignedAgent = agents.find(a => a.id === agentId)
-        if (assignedAgent) {
-          setTicket(prev => prev ? { ...prev, assignedTo: assignedAgent } : prev)
+        if (!agentId) {
+          setTicket(prev => prev ? { ...prev, assignedTo: null } : prev)
+          toast.success("Penugasan agen berhasil dilepas")
+        } else {
+          const assignedAgent = agents.find(a => a.id === agentId)
+          if (assignedAgent) {
+            setTicket(prev => prev ? { ...prev, assignedTo: assignedAgent } : prev)
+          }
+          toast.success("Tiket berhasil ditugaskan")
         }
+      } else {
+        toast.error(data.message || "Gagal mengubah penugasan tiket")
       }
     } catch (err) {
       console.error(err)
+      toast.error("Terjadi kesalahan koneksi saat mengubah penugasan")
     } finally {
       setIsAssigning(false)
     }
@@ -148,11 +164,13 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
       const data = await res.json()
       if (data.success) {
         setTicket({ ...ticket, status: nextStatus })
+        toast.success(`Status tiket diubah menjadi ${statusConfig[nextStatus]?.label || nextStatus}`)
       } else {
-        alert(`Failed to update status: ${data.message}`)
+        toast.error(`Gagal mengubah status: ${data.message}`)
       }
     } catch (err) {
       console.error(err)
+      toast.error("Terjadi kesalahan saat mengubah status")
     } finally {
       setIsUpdatingStatus(false)
     }
@@ -177,9 +195,13 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         }
         setTicket(prev => prev ? { ...prev, comments: [...prev.comments, newComment] } : prev)
         setReply("")
+        toast.success("Balasan berhasil dikirim")
+      } else {
+        toast.error(data.message || "Gagal mengirim balasan")
       }
     } catch (err) {
       console.error(err)
+      toast.error("Terjadi kesalahan saat mengirim balasan")
     }
   }
 
@@ -204,7 +226,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     }
   }
 
-  if (loading || !ticket) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div className="bg-card border border-border rounded-2xl p-6 shadow-md h-32 flex flex-col justify-center gap-3">
@@ -220,6 +242,18 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             <Skeleton className="h-[600px] w-full rounded-2xl" />
           </div>
         </div>
+      </div>
+    )
+  }
+
+  if (fetchError || !ticket) {
+    return (
+      <div className="p-8 text-center bg-card border border-border rounded-2xl space-y-4 my-8 max-w-lg mx-auto">
+        <h2 className="text-xl font-semibold text-destructive">Gagal Memuat Tiket</h2>
+        <p className="text-muted-foreground">{fetchError || "Tiket tidak ditemukan atau Anda tidak memiliki akses ke tiket ini."}</p>
+        <Button variant="outline" onClick={() => window.history.back()}>
+          Kembali
+        </Button>
       </div>
     )
   }
@@ -426,9 +460,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     <Select 
                       value={ticket.assignedTo?.id || "unassigned"} 
                       onValueChange={(val) => {
-                        if (val !== "unassigned") {
-                          handleAssign(val);
-                        }
+                        handleAssign(val === "unassigned" ? null : val);
                       }}
                       disabled={isAssigning}
                     >
@@ -436,7 +468,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                         <SelectValue placeholder="Select Assignee" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="unassigned" disabled>
+                        <SelectItem value="unassigned">
                           Unassigned
                         </SelectItem>
                         {agents.map(agent => (

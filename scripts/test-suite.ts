@@ -21,18 +21,34 @@ import {
 } from "../src/lib/validations/ticket";
 import {
   formatZodErrors,
+  validateRequestBody,
 } from "../src/lib/validations/api-validator";
 import {
   checkRateLimit,
   peekRateLimit,
   LIMIT_CONFIGS,
   resetMemoryRateLimit,
+  resetRateLimit,
   createRateLimitResponse,
 } from "../src/lib/rate-limit";
+import {
+  getStartOfPeriod,
+} from "../src/app/api/v1/analytics/route";
+import {
+  GET as exportGet,
+} from "../src/app/api/v1/tickets/export/route";
+import {
+  encodeSession,
+  SESSION_COOKIE_NAME,
+} from "../src/lib/auth-session";
+import { z } from "zod";
 import {
   GET as legacyGet,
   POST as legacyPost,
 } from "../src/app/api/tickets/route";
+import {
+  GET as pingGet,
+} from "../src/app/api/v1/ping/route";
 import {
   checkIdempotency,
   resolveIdempotency,
@@ -383,6 +399,94 @@ async function runTests() {
     resPost.headers.get("location")?.includes("/api/v1/tickets") === true,
     "Legacy POST /api/tickets me-redirect target lokasi ke /api/v1/tickets"
   );
+
+  // ── [8] Pengujian Keep-Alive Ping (Supabase Anti-Inactivity) ─────────
+  console.log("\n📡 [8] Pengujian Keep-Alive Ping (Supabase Anti-Inactivity)");
+  const pingRes = await pingGet();
+  assert(pingRes.status === 200, "Ping endpoint merespon dengan status HTTP 200");
+  const pingData = await pingRes.json();
+  assert(pingData.success === true, "Ping payload mengindikasikan status success: true");
+  assert(typeof pingData.latencyMs === "number", "Ping payload mencatat metrik latensi ms");
+  assert(typeof pingData.timestamp === "string", "Ping payload menyertakan ISO timestamp");
+
+  // ── [9] Pengujian Optimasi Batch 2: Timezone, Form Multi-Value, Export RBAC & Rate Reset ──
+  console.log("\n⚡ [9] Pengujian Batch 2: Timezone, Form Multi-Value, Export RBAC & Rate Reset");
+
+  // A. Timezone Start-Of-Period
+  const testWibDate = new Date("2026-10-18T23:30:00Z"); // 06:30 WIB on Oct 19
+  const dailyPeriod = getStartOfPeriod("daily", testWibDate, "Asia/Jakarta");
+  assert(
+    dailyPeriod.toISOString().startsWith("2026-10-18T17:00:00"),
+    "Batas waktu harian WIB (UTC+7) dihitung presisi (00:00 WIB = 17:00 UTC hari sebelumnya)"
+  );
+  const monthlyPeriod = getStartOfPeriod("monthly", testWibDate, "Asia/Jakarta");
+  assert(
+    monthlyPeriod.toISOString().includes("2026-09-30T17:00:00") || monthlyPeriod.getDate() === 1,
+    "Batas waktu bulanan WIB dimulai pada awal bulan kalender"
+  );
+
+  // B. Multi-value FormData parser
+  const testSchema = z.object({
+    title: z.string(),
+    tags: z.array(z.string()),
+  });
+  const testFormData = new FormData();
+  testFormData.append("title", "Test Ticket");
+  testFormData.append("tags", "hardware");
+  testFormData.append("tags", "urgent");
+
+  const formRequest = new Request("http://localhost:3000/api/test", {
+    method: "POST",
+    body: testFormData,
+  });
+  const validationRes = await validateRequestBody(testSchema, formRequest);
+  assert(validationRes.success === true, "validateRequestBody berhasil memvalidasi multipart form");
+  if (validationRes.success) {
+    assert(
+      Array.isArray(validationRes.data.tags) && validationRes.data.tags.length === 2,
+      "validateRequestBody mengumpulkan key form duplikat menjadi array"
+    );
+  }
+
+  // C. Export RBAC Isolation for Agent
+  await resetRateLimit("user-4", "rl:export");
+  const agentToken = encodeSession({
+    id: "user-4", // john@support
+    email: "john@support",
+    fullName: "John Support",
+    role: "agent",
+  });
+  const now = new Date();
+  const past7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const startParam = past7Days.toISOString().slice(0, 10);
+  const endParam = now.toISOString().slice(0, 10);
+
+  const agentExportReq = new Request(
+    `http://localhost:3000/api/v1/tickets/export?startDate=${startParam}&endDate=${endParam}&format=json`,
+    {
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=${agentToken}`,
+      },
+    }
+  );
+  const agentExportRes = await exportGet(agentExportReq);
+  const agentExportData = await agentExportRes.json();
+  assert(agentExportRes.status === 200, "Ekspor tiket oleh agen berstatus HTTP 200");
+  assert(agentExportData.success === true, "Ekspor tiket oleh agen sukses");
+  const hasOtherAgentTicket = agentExportData.data?.some(
+    (t: { assignedToName: string }) => t.assignedToName === "Mike Chen"
+  );
+  assert(!hasOtherAgentTicket, "Agen tidak dapat mengekspor tiket privat milik teknisi lain");
+
+  // D. Reset Rate Limit
+  const testResetKey = "test-reset-client-ip";
+  const testResetCfg = { limit: 1, windowMs: 60000, prefix: "rl:test" };
+  await checkRateLimit(testResetKey, testResetCfg);
+  const peekBlocked = await peekRateLimit(testResetKey, testResetCfg);
+  assert(peekBlocked.remaining === 0, "Rate limit mendeteksi batas terlampaui sebelum reset");
+  await resetRateLimit(testResetKey, "rl:test");
+  const peekAfterReset = await peekRateLimit(testResetKey, testResetCfg);
+  assert(peekAfterReset.remaining === 1, "resetRateLimit berhasil mengembalikan kuota penuh");
 
   console.log("\n========================================================");
   console.log(`  HASIL: ${passedCount} LULUS, ${failedCount} GAGAL`);

@@ -173,11 +173,52 @@ export async function checkRateLimit(
 
 /**
  * Peeks rate limit status without consuming or recording an attempt.
+ * Uses Upstash Redis if env credentials exist, otherwise falls back to memory.
  */
 export async function peekRateLimit(
   identifier: string,
   config: RateLimitConfig
 ): Promise<RateLimitResult> {
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (redisUrl && redisToken) {
+    try {
+      const { Ratelimit } = await import("@upstash/ratelimit");
+      const { Redis } = await import("@upstash/redis");
+
+      const redis = new Redis({
+        url: redisUrl,
+        token: redisToken,
+      });
+
+      const ratelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          config.limit,
+          `${Math.round(config.windowMs / 1000)} s` as `${number} s`
+        ),
+        prefix: config.prefix,
+      });
+
+      const result = await ratelimit.getRemaining(identifier);
+      const remaining = typeof result === "number" ? result : result.remaining;
+      const reset =
+        typeof result === "object" && result && "reset" in result
+          ? result.reset
+          : Date.now() + config.windowMs;
+
+      return {
+        success: remaining > 0,
+        limit: config.limit,
+        remaining,
+        reset,
+      };
+    } catch {
+      // Fallback silently to memory store
+    }
+  }
+
   const fullKey = `${config.prefix}:${identifier}`;
   return memorySlidingWindowPeek(fullKey, config);
 }
@@ -266,9 +307,31 @@ export function createRateLimitResponse(
 }
 
 /**
- * Reset rate limit counter (e.g. on successful login)
+ * Reset rate limit counter (e.g. on successful login).
+ * Clears local memory store and removes key from Upstash Redis if configured.
  */
-export function resetMemoryRateLimit(identifier: string, prefix: string): void {
+export async function resetRateLimit(identifier: string, prefix: string): Promise<void> {
   const fullKey = `${prefix}:${identifier}`;
   memoryStore.delete(fullKey);
+
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (redisUrl && redisToken) {
+    try {
+      const { Redis } = await import("@upstash/redis");
+      const redis = new Redis({
+        url: redisUrl,
+        token: redisToken,
+      });
+      await redis.del(`${prefix}:${identifier}`);
+    } catch {
+      // Fallback silently
+    }
+  }
 }
+
+/**
+ * Backward-compatible alias for resetRateLimit
+ */
+export const resetMemoryRateLimit = resetRateLimit;

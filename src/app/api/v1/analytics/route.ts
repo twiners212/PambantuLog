@@ -6,11 +6,43 @@ const isSupabaseConfigured =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
   !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+/**
+ * Calculates start of period (daily, monthly, yearly) in the given timezone (defaults to Asia/Jakarta / UTC+7).
+ */
+export function getStartOfPeriod(
+  timeRange: string,
+  now = new Date(),
+  timeZone = "Asia/Jakarta"
+): Date {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find((p) => p.type === "year")?.value || "1970";
+  const month = parts.find((p) => p.type === "month")?.value || "01";
+  const day = parts.find((p) => p.type === "day")?.value || "01";
+
+  if (timeRange === "daily") {
+    return new Date(`${year}-${month}-${day}T00:00:00.000+07:00`);
+  }
+  if (timeRange === "monthly") {
+    return new Date(`${year}-${month}-01T00:00:00.000+07:00`);
+  }
+  if (timeRange === "yearly") {
+    return new Date(`${year}-01-01T00:00:00.000+07:00`);
+  }
+  return new Date(0);
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const timeRange = url.searchParams.get("timeRange") || "all";
     const agentId = url.searchParams.get("agentId") || "all";
+    const timeZone = url.searchParams.get("tz") || "Asia/Jakarta";
 
     if (!isSupabaseConfigured) {
       let filtered = mockTickets;
@@ -18,13 +50,10 @@ export async function GET(request: Request) {
         filtered = filtered.filter((t) => t.assignedToId === agentId);
       }
       if (timeRange !== "all") {
-        const now = new Date();
+        const startDate = getStartOfPeriod(timeRange, new Date(), timeZone);
         filtered = filtered.filter((t) => {
           const d = new Date(t.createdAt);
-          if (timeRange === "daily") return d.toDateString() === now.toDateString();
-          if (timeRange === "monthly") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-          if (timeRange === "yearly") return d.getFullYear() === now.getFullYear();
-          return true;
+          return d >= startDate;
         });
       }
       const counts = {
@@ -45,40 +74,56 @@ export async function GET(request: Request) {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    let userId = user?.id;
+    let userRole: string | undefined;
+
+    if (userId) {
+      const [profile] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (profile) {
+        userRole = profile.role;
+      }
+    } else {
+      const { getServerSession, decodeSession, SESSION_COOKIE_NAME } = await import("@/lib/auth-session");
+      const session = await getServerSession();
+      if (session) {
+        userId = session.id;
+        userRole = session.role;
+      } else {
+        const cookieHeader = request.headers.get("cookie");
+        if (cookieHeader) {
+          const cookies = cookieHeader.split(";").map((c) => c.trim());
+          const sessionCookie = cookies.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+          if (sessionCookie) {
+            const val = sessionCookie.substring(sessionCookie.indexOf("=") + 1);
+            const decoded = decodeSession(val);
+            if (decoded) {
+              userId = decoded.id;
+              userRole = decoded.role;
+            }
+          }
+        }
+      }
     }
 
-    const [profile] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
-    if (!profile) {
-      return NextResponse.json({ success: false, message: "User profile not found" }, { status: 404 });
+    if (!userId || !userRole) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
     const conditions = [];
 
     let filterAgentId = agentId;
-    if (profile.role === "agent") {
-      filterAgentId = profile.id;
-    } else if (profile.role === "karyawan") {
-      conditions.push(eq(tickets.createdById, profile.id));
+    if (userRole === "agent") {
+      filterAgentId = userId;
+    } else if (userRole === "karyawan") {
+      conditions.push(eq(tickets.createdById, userId));
     }
 
-    if (filterAgentId !== "all" && profile.role !== "karyawan") {
+    if (filterAgentId !== "all" && userRole !== "karyawan") {
       conditions.push(eq(tickets.assignedToId, filterAgentId));
     }
 
     if (timeRange !== "all") {
-      const now = new Date();
-      let startDate: Date;
-      if (timeRange === "daily") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      } else if (timeRange === "monthly") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      } else if (timeRange === "yearly") {
-        startDate = new Date(now.getFullYear(), 0, 1);
-      } else {
-        startDate = new Date(0);
-      }
+      const startDate = getStartOfPeriod(timeRange, new Date(), timeZone);
       conditions.push(gte(tickets.createdAt, startDate));
     }
 

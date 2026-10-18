@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, tickets } from "@/db/schema";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 
 /**
  * DELETE /api/admin/users/:id
@@ -53,7 +53,29 @@ export async function DELETE(
       );
     }
 
-    // ── 4. Delete from Drizzle `users` table first ──────────────────────
+    // Check if user has created tickets
+    const [createdTicketCount] = await db
+      .select({ count: count() })
+      .from(tickets)
+      .where(eq(tickets.createdById, targetUserId));
+
+    if (createdTicketCount && createdTicketCount.count > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Tidak dapat menghapus akun karena memiliki ${createdTicketCount.count} tiket aktif yang dibuat. Silakan hapus atau arsipkan tiket terlebih dahulu.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Safely unassign any tickets currently assigned to this user
+    await db
+      .update(tickets)
+      .set({ assignedToId: null })
+      .where(eq(tickets.assignedToId, targetUserId));
+
+    // ── 4. Delete from Drizzle `users` table ─────────────────────────────
     const deleted = await db
       .delete(users)
       .where(eq(users.id, targetUserId))
