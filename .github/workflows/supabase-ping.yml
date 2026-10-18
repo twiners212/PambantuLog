@@ -7,38 +7,41 @@ on:
   workflow_dispatch: # Allows manual trigger from the GitHub UI
 
 jobs:
-  ping:
+  ping_supabase:
     runs-on: ubuntu-latest
     steps:
       - name: Ping PambantuLog Next.js App /api/v1/ping
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
         run: |
-          APP_URL="${{ secrets.APP_URL }}"
-          if [ -z "$APP_URL" ]; then
-            APP_URL="https://pambantulog.vercel.app"
-          fi
-          echo "Pinging ${APP_URL}/api/v1/ping..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/v1/ping")
-          echo "Response HTTP code: ${HTTP_CODE}"
+          TARGET_URL="${APP_URL:-https://pambantulog.vercel.app}"
+          echo "Pinging ${TARGET_URL}/api/v1/ping..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${TARGET_URL}/api/v1/ping")
+          echo "App ping response HTTP code: ${HTTP_CODE}"
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
-            echo "✅ Keep-alive ping to app succeeded!"
+            echo "✅ Keep-alive ping to Next.js app succeeded!"
           else
-            echo "⚠️ App ping returned HTTP ${HTTP_CODE}. Proceeding to direct Supabase ping fallback."
+            echo "⚠️ Next.js app ping returned HTTP ${HTTP_CODE}."
           fi
 
-      - name: Fallback Direct Supabase REST API Ping
-        if: ${{ secrets.SUPABASE_URL != '' }}
+      - name: Ping Supabase REST API Directly
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          echo "Pinging Supabase REST API directly..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/categories?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
-          echo "Supabase REST HTTP response: ${HTTP_CODE}"
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
-            echo "✅ Direct Supabase ping succeeded!"
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo "Pinging Supabase REST API..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${SUPABASE_URL}/rest/v1/categories?select=id&limit=1" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+            echo "Supabase REST response HTTP code: ${HTTP_CODE}"
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+              echo "✅ Direct Supabase REST ping succeeded!"
+            else
+              echo "❌ Direct Supabase REST ping failed with HTTP ${HTTP_CODE}."
+              exit 1
+            fi
           else
-            echo "⚠️ Direct Supabase ping returned HTTP ${HTTP_CODE}."
+            echo "ℹ️ SUPABASE_URL or SUPABASE_ANON_KEY secret not found, skipping direct ping."
           fi
