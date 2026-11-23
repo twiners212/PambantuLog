@@ -25,6 +25,7 @@ export const SESSION_COOKIE_OPTIONS = {
 
 const SESSION_SECRET =
   process.env.SESSION_SECRET ||
+  process.env.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   "pambantulog-secret-session-key-dev-fallback-32chars";
 

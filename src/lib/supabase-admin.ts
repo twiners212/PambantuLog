@@ -5,7 +5,7 @@ let _adminClient: SupabaseClient | null = null;
 export function getSupabaseAdmin(): SupabaseClient | null {
   if (_adminClient) return _adminClient;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   _adminClient = createClient(url, key, {
     auth: {
@@ -17,7 +17,10 @@ export function getSupabaseAdmin(): SupabaseClient | null {
 }
 
 export function isSupabaseAdminConfigured(): boolean {
-  return !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return (
+    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    (!!process.env.SUPABASE_SECRET_KEY || !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+  );
 }
 
 function createStub(path: string[] = []): unknown {
@@ -28,14 +31,14 @@ function createStub(path: string[] = []): unknown {
     },
     apply() {
       throw new Error(
-        `[supabaseAdmin] Method '${path.join(".")}' called, but SUPABASE_SERVICE_ROLE_KEY is not configured.`
+        `[supabaseAdmin] Method '${path.join(".")}' called, but SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is not configured.`
       );
     },
   });
 }
 
 /**
- * Supabase Admin client (service-role key).
+ * Supabase Admin client (secret / service-role key).
  *
  * ⚠️  This client bypasses Row-Level Security.
  * Use ONLY in trusted server-side contexts such as:
@@ -49,7 +52,7 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
     const client = getSupabaseAdmin();
     if (!client) {
       console.warn(
-        `[supabaseAdmin] Properti '${String(prop)}' diakses namun variabel SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.`
+        `[supabaseAdmin] Properti '${String(prop)}' diakses namun variabel SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.`
       );
       return createStub([String(prop)]);
     }

@@ -1,7 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 /**
- * Supabase browser client (anon key).
+ * Supabase browser client (publishable / anon key).
  *
  * Use this in "use client" components. It reads/writes auth cookies
  * automatically via the browser and respects RLS.
@@ -11,7 +11,9 @@ import { createBrowserClient } from "@supabase/ssr";
  */
 export function createSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     return null;

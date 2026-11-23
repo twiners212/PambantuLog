@@ -4,7 +4,7 @@ import { getServerSession } from "./auth-session";
 import type { User } from "@supabase/supabase-js";
 
 /**
- * Supabase server client (anon key + cookie-based session).
+ * Supabase server client (publishable / anon key + cookie-based session).
  *
  * This respects Row-Level Security and reads the current user session
  * from the request cookies set by the Supabase Auth middleware/browser SDK.
@@ -13,7 +13,9 @@ import type { User } from "@supabase/supabase-js";
  */
 export async function createSupabaseServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     // Return a mock-compatible client backed by cookie session
